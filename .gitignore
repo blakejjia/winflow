@@ -18,3 +18,9 @@ publish/
 Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# .NET local CLI home
+.dotnet/
+
+# Logs
+*.log
