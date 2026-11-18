@@ -20,7 +20,6 @@
     <ProjectReference Include="..\..\src\WinFlow.Core\WinFlow.Core.csproj" />
     <ProjectReference Include="..\..\src\WinFlow.Audio\WinFlow.Audio.csproj" />
     <ProjectReference Include="..\..\src\WinFlow.WindowsInterops\WinFlow.WindowsInterops.csproj" />
-    <ProjectReference Include="..\..\src\WinFlow.App\WinFlow.App.csproj" />
   </ItemGroup>
 
   <ItemGroup>
