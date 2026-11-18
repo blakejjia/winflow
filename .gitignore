@@ -1,0 +1,20 @@
+# Upstream Reference
+reference/
+.superpowers/
+
+# Visual Studio / .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.dotCover
+
+# Publish output
+dist/
+publish/
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
