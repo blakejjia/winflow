@@ -35,7 +35,6 @@ jobs:
         dotnet publish WinFlow.csproj `
           -c Release `
           -r win-x64 `
-          --no-restore `
           --self-contained true `
           -p:PublishSingleFile=true `
           -p:IncludeNativeLibrariesForSelfExtract=true `
