@@ -7,6 +7,7 @@ using WinFlow.Audio;
 using WinFlow.Core.Models;
 using WinFlow.Core.Pipeline;
 using WinFlow.Core.Prompts;
+using WinFlow.Core.Services;
 using Wpf.Ui;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
@@ -24,6 +25,8 @@ public partial class SettingsWindow : FluentWindow
     private string _currentApiKey = string.Empty;
     private bool _allowClose;
     private bool _loadingSettings;
+    private IReadOnlyList<ModelInfo> _models = Array.Empty<ModelInfo>();
+    private bool _modelsLoading;
 
     private FrameworkElement[] Pages => new FrameworkElement[]
     {
@@ -61,6 +64,10 @@ public partial class SettingsWindow : FluentWindow
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
         LoadSettingsIntoUi();
+        if (_models.Count == 0 && !_modelsLoading)
+        {
+            _ = RefreshModelsAsync(quiet: true);
+        }
     }
 
     private void RootNavigation_ItemInvoked(NavigationView sender, RoutedEventArgs args)
@@ -218,6 +225,96 @@ public partial class SettingsWindow : FluentWindow
     private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
     {
         _currentApiKey = ApiKeyBox.Password;
+    }
+
+    // ---------- Model catalog ----------
+
+    private async void RefreshModels_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshModelsAsync(quiet: false);
+    }
+
+    private async Task RefreshModelsAsync(bool quiet)
+    {
+        if (_modelsLoading) return;
+        _modelsLoading = true;
+        RefreshModelsButton.IsEnabled = false;
+        ModelsStatusText.Text = "Fetching models from your endpoint…";
+
+        try
+        {
+            // Use the URL/key currently in the editor, not the last saved ones, so
+            // "Test connection" and "Refresh list" agree with what the user sees.
+            var preview = new AppSettings
+            {
+                ApiBaseUrl = BaseUrlBox.Text.Trim(),
+                GroqApiKey = _currentApiKey.Trim(),
+                TranscriptionApiKey = _appState.Settings.TranscriptionApiKey
+            };
+            var catalog = new ModelCatalogService(_httpClient, new FixedSettingsProvider(preview));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            _models = await catalog.GetModelsAsync(cts.Token);
+
+            if (_models.Count > 0)
+            {
+                ModelsStatusText.Text = $"{_models.Count} models available — start typing or open the list to pick one.";
+                PopulateModelSuggestions();
+                if (!quiet)
+                {
+                    ShowSnackbar("Model list updated", $"{_models.Count} models loaded from your endpoint.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
+                }
+            }
+            else
+            {
+                ModelsStatusText.Text = "Couldn't load the model list — check the API key and base URL on General. You can still type any model id.";
+                if (!quiet)
+                {
+                    ShowSnackbar("No models loaded", "The endpoint didn't return a list. Check the key and URL, or type model ids manually.", ControlAppearance.Caution, SymbolRegular.Warning24);
+                }
+            }
+        }
+        finally
+        {
+            _modelsLoading = false;
+            RefreshModelsButton.IsEnabled = true;
+        }
+    }
+
+    private IEnumerable<string> SuggestionsFor(AutoSuggestBox box)
+    {
+        var slot = box == TranscriptionModelBox ? ModelKind.Transcription
+            : box == ContextModelBox ? ModelKind.Vision
+            : ModelKind.Chat;
+        return ModelCatalogService.ForSlot(_models, slot).Select(m => m.Id);
+    }
+
+    private void PopulateModelSuggestions()
+    {
+        foreach (var box in new[] { TranscriptionModelBox, PostProcessingModelBox, FallbackModelBox, ContextModelBox })
+        {
+            box.OriginalItemsSource = SuggestionsFor(box).ToList();
+            box.ItemsSource = box.OriginalItemsSource;
+        }
+    }
+
+    private void ModelBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+
+        var query = sender.Text?.Trim() ?? string.Empty;
+        var candidates = SuggestionsFor(sender);
+        sender.ItemsSource = query.Length == 0
+            ? candidates.ToList()
+            : candidates.Where(id => id.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+        sender.IsSuggestionListOpen = sender.ItemsSource is ICollection<string> { Count: > 0 };
+    }
+
+    private void ModelBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    {
+        if (args.SelectedItem is string id)
+        {
+            sender.Text = id;
+        }
     }
 
     private async void TestApiKey_Click(object sender, RoutedEventArgs e)

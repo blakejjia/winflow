@@ -210,17 +210,29 @@
                 <!-- ================= MODELS ================= -->
                 <ScrollViewer x:Name="PageModels" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="32,24,32,24">
                     <StackPanel MaxWidth="620" HorizontalAlignment="Left">
-                        <ui:TextBlock FontTypography="Title" Text="Models"/>
+                        <DockPanel Margin="0,0,0,4">
+                            <ui:TextBlock FontTypography="Title" Text="Models" VerticalAlignment="Center"/>
+                            <ui:Button x:Name="RefreshModelsButton" Content="Refresh list" Click="RefreshModels_Click"
+                                       Appearance="Transparent" HorizontalAlignment="Right" Padding="8,2">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowClockwise24"/>
+                                </ui:Button.Icon>
+                            </ui:Button>
+                        </DockPanel>
                         <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                      Text="Three jobs, three models. The defaults are fast and cheap on Groq — change them only if you know you want to."
-                                      TextWrapping="Wrap" Margin="0,4,0,24"/>
+                                      Text="Pick from your endpoint's model list, or type any model id — custom endpoints work too. The defaults are fast and cheap on Groq."
+                                      TextWrapping="Wrap" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="ModelsStatusText" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,20"/>
 
                         <ui:Card Margin="0,0,0,8" Padding="16">
                             <StackPanel>
                                 <TextBlock Text="Transcription — hears your words" FontWeight="Medium" Margin="0,0,0,2"/>
                                 <TextBlock Text="Whisper turns the recording into raw text." FontSize="12"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:TextBox x:Name="TranscriptionModelBox" PlaceholderText="whisper-large-v3"/>
+                                <ui:AutoSuggestBox x:Name="TranscriptionModelBox" PlaceholderText="whisper-large-v3"
+                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
                             </StackPanel>
                         </ui:Card>
                         <ui:Card Margin="0,0,0,8" Padding="16">
@@ -228,7 +240,8 @@
                                 <TextBlock Text="Cleanup — writes them properly" FontWeight="Medium" Margin="0,0,0,2"/>
                                 <TextBlock Text="Removes filler, fixes punctuation, keeps your meaning. Never answers or executes what you said." FontSize="12"
                                            TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:TextBox x:Name="PostProcessingModelBox" PlaceholderText="openai/gpt-oss-20b"/>
+                                <ui:AutoSuggestBox x:Name="PostProcessingModelBox" PlaceholderText="openai/gpt-oss-20b"
+                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
                             </StackPanel>
                         </ui:Card>
                         <ui:Card Margin="0,0,0,8" Padding="16">
@@ -236,7 +249,8 @@
                                 <TextBlock Text="Cleanup fallback" FontWeight="Medium" Margin="0,0,0,2"/>
                                 <TextBlock Text="Tried once if the cleanup model fails." FontSize="12"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:TextBox x:Name="FallbackModelBox"/>
+                                <ui:AutoSuggestBox x:Name="FallbackModelBox" PlaceholderText="qwen/qwen3-32b"
+                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
                             </StackPanel>
                         </ui:Card>
                         <ui:Card Margin="0,0,0,8" Padding="16">
@@ -244,7 +258,8 @@
                                 <TextBlock Text="Context vision — reads the room" FontWeight="Medium" Margin="0,0,0,2"/>
                                 <TextBlock Text="Summarizes your screen in two sentences while you speak, so cleanup knows the topic." FontSize="12"
                                            TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:TextBox x:Name="ContextModelBox"/>
+                                <ui:AutoSuggestBox x:Name="ContextModelBox" PlaceholderText="meta-llama/llama-4-scout-17b-16e-instruct"
+                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
                             </StackPanel>
                         </ui:Card>
                     </StackPanel>
