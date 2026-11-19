@@ -33,8 +33,8 @@
                        HorizontalContentAlignment="Left" Padding="10,8" Click="Settings_Click"
                        Foreground="{DynamicResource TrayMenuTextBrush}">
                 <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="Settings24" FontSize="16" Margin="0,0,10,0"/>
-                    <TextBlock Text="Settings" VerticalAlignment="Center"/>
+                    <ui:SymbolIcon Symbol="Home24" FontSize="16" Margin="0,0,10,0"/>
+                    <TextBlock Text="Open WinFlow" VerticalAlignment="Center"/>
                 </StackPanel>
             </ui:Button>
             <ui:Button x:Name="RunLogButton" Appearance="Transparent" HorizontalAlignment="Stretch"
@@ -42,7 +42,7 @@
                        Foreground="{DynamicResource TrayMenuTextBrush}">
                 <StackPanel Orientation="Horizontal">
                     <ui:SymbolIcon Symbol="History24" FontSize="16" Margin="0,0,10,0"/>
-                    <TextBlock Text="Run log" VerticalAlignment="Center"/>
+                    <TextBlock Text="History" VerticalAlignment="Center"/>
                 </StackPanel>
             </ui:Button>
             <Border Height="1" Background="{DynamicResource TrayMenuDividerBrush}" Margin="8,2"/>

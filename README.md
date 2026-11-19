@@ -46,8 +46,15 @@ Publish a self-contained executable:
 ./scripts/publish.ps1
 ```
 
-## Configuration
+## The app
 
-WinFlow runs in the Windows system tray. Open the settings window from the tray menu to configure your API endpoint and credentials — saved changes apply immediately, no restart needed.
+WinFlow's main window is your voice-writing space:
 
-Closing the settings window hides it to the tray; dictation keeps working. Use **Exit WinFlow** in the tray menu to quit. Only one instance can run at a time; a second launch exits quietly.
+- **Home** — today's dictations and your lifetime stats (words, wpm, streak), counted on this PC only.
+- **History** — recent dictations as a reading timeline; copy any of them again.
+- **Snippets** — say a phrase, get the text ("my email" → you@example.com). Instant, no AI, works offline.
+- **Words** — your names and jargon; cleanup treats them as the correct spelling.
+- **Notes** — record a meeting (microphone + system audio, only while you record), get minutes and a full transcript, saved locally.
+- **Settings** (separate dialog) — General, System, AI & models, Privacy, Prompts. Saved changes apply immediately, no restart needed.
+
+WinFlow runs in the Windows system tray. Closing the main window hides it; dictation keeps working. Use **Quit WinFlow** in the tray menu to exit. Only one instance can run at a time; a second launch exits quietly. While a fullscreen game owns the screen, CapsLock passes through untouched (toggle in Settings → System).

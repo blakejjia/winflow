@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-        Title="WinFlow"
-        Width="920" Height="680"
-        MinWidth="760" MinHeight="540"
-        WindowStartupLocation="CenterScreen"
+        Title="WinFlow Settings"
+        Width="860" Height="640"
+        MinWidth="720" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica">
 
@@ -15,128 +15,79 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="WinFlow" ShowMaximize="True" ShowMinimize="True">
-            <ui:TitleBar.Icon>
-                <ui:SymbolIcon Symbol="MicSparkle24"/>
-            </ui:TitleBar.Icon>
-        </ui:TitleBar>
+        <ui:TitleBar Grid.Row="0" Title="Settings" ShowMaximize="False" ShowMinimize="False"/>
 
-        <ui:NavigationView x:Name="RootNavigation"
-                           Grid.Row="1"
-                           PaneDisplayMode="Left"
-                           IsBackButtonVisible="Collapsed"
-                           IsPaneToggleVisible="False"
-                           OpenPaneLength="190"
-                           HeaderVisibility="Collapsed"
-                           ItemInvoked="RootNavigation_ItemInvoked">
-            <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem x:Name="NavGeneral" Click="NavItem_Click" Content="General" Tag="General" IsActive="True">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Settings24"/>
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem x:Name="NavModels" Click="NavItem_Click" Content="Models" Tag="Models">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="BrainCircuit24"/>
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem x:Name="NavShortcuts" Click="NavItem_Click" Content="Shortcuts" Tag="Shortcuts">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Keyboard24"/>
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem x:Name="NavVocabulary" Click="NavItem_Click" Content="Vocabulary" Tag="Vocabulary">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="BookOpen24"/>
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem x:Name="NavMacros" Click="NavItem_Click" Content="Voice macros" Tag="Macros">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Flash24"/>
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem x:Name="NavPrompts" Click="NavItem_Click" Content="Prompts" Tag="Prompts">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="TextGrammarWand24"/>
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem x:Name="NavRunLog" Click="NavItem_Click" Content="Run log" Tag="RunLog">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="History24"/>
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-            </ui:NavigationView.MenuItems>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <ui:NavigationView.FooterMenuItems>
-                <ui:NavigationViewItem Content="Hold CapsLock to speak" IsEnabled="False">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Mic24"/>
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-            </ui:NavigationView.FooterMenuItems>
+            <!-- Settings rail -->
+            <StackPanel Grid.Column="0" Margin="16,16,8,16">
+                <TextBlock Text="SETTINGS" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="12,0,0,8"/>
+                <ui:Button x:Name="TabGeneral" Appearance="Transparent" HorizontalAlignment="Stretch"
+                           HorizontalContentAlignment="Left" Padding="10,8" Click="SettingsTab_Click" Tag="General">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Options24" FontSize="16" Margin="0,0,10,0"/>
+                        <TextBlock Text="General" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ui:Button>
+                <ui:Button x:Name="TabSystem" Appearance="Transparent" HorizontalAlignment="Stretch"
+                           HorizontalContentAlignment="Left" Padding="10,8" Click="SettingsTab_Click" Tag="System">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Desktop24" FontSize="16" Margin="0,0,10,0"/>
+                        <TextBlock Text="System" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ui:Button>
+                <ui:Button x:Name="TabAi" Appearance="Transparent" HorizontalAlignment="Stretch"
+                           HorizontalContentAlignment="Left" Padding="10,8" Click="SettingsTab_Click" Tag="Ai">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="BrainCircuit24" FontSize="16" Margin="0,0,10,0"/>
+                        <TextBlock Text="AI &amp; models" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ui:Button>
+                <ui:Button x:Name="TabPrivacy" Appearance="Transparent" HorizontalAlignment="Stretch"
+                           HorizontalContentAlignment="Left" Padding="10,8" Click="SettingsTab_Click" Tag="Privacy">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="16" Margin="0,0,10,0"/>
+                        <TextBlock Text="Privacy" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ui:Button>
+                <ui:Button x:Name="TabPrompts" Appearance="Transparent" HorizontalAlignment="Stretch"
+                           HorizontalContentAlignment="Left" Padding="10,8" Click="SettingsTab_Click" Tag="Prompts">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="TextGrammarWand24" FontSize="16" Margin="0,0,10,0"/>
+                        <TextBlock Text="Prompts" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ui:Button>
+            </StackPanel>
 
-            <ui:NavigationView.ContentOverlay>
-            <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- ================= GENERAL ================= -->
-                <ScrollViewer x:Name="PageGeneral" Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="32,24,32,24">
-                    <StackPanel MaxWidth="620" HorizontalAlignment="Left">
-                        <ui:TextBlock FontTypography="Title" Text="General"/>
-                        <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                      Text="Hold CapsLock anywhere and speak. Release, and your words appear where the cursor is."
-                                      TextWrapping="Wrap" Margin="0,4,0,24"/>
+                <!-- ============ GENERAL ============ -->
+                <ScrollViewer x:Name="PaneGeneral" Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,20,28,20">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="General" Margin="0,0,0,20"/>
 
-                        <ui:TextBlock FontTypography="BodyStrong" Text="Appearance" Margin="0,0,0,8"/>
-                        <ui:CardControl Margin="0,0,0,24">
+                        <ui:CardControl Margin="0,0,0,8">
                             <ui:CardControl.Icon>
-                                <ui:SymbolIcon Symbol="Color24"/>
+                                <ui:SymbolIcon Symbol="Keyboard24"/>
                             </ui:CardControl.Icon>
                             <ui:CardControl.Header>
                                 <StackPanel>
-                                    <TextBlock Text="Theme" FontWeight="Medium"/>
-                                    <TextBlock Text="Match Windows, or pick one yourself." FontSize="12"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="Shortcut" FontWeight="Medium"/>
+                                    <TextBlock Text="Hold CapsLock and speak. Double-tap for hands-free. Shift+CapsLock stays normal." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </ui:CardControl.Header>
-                            <ComboBox x:Name="ThemeComboBox" Width="150" SelectionChanged="ThemeComboBox_SelectionChanged">
-                                <ComboBoxItem Content="Use Windows"/>
-                                <ComboBoxItem Content="Dark"/>
-                                <ComboBoxItem Content="Light"/>
-                            </ComboBox>
                         </ui:CardControl>
 
-                        <ui:TextBlock FontTypography="BodyStrong" Text="Connection" Margin="0,0,0,8"/>
-                        <ui:Card Margin="0,0,0,8" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="Groq API key" FontWeight="Medium" Margin="0,0,0,2"/>
-                                <TextBlock Text="Your key stays on this PC, encrypted with Windows DPAPI. Nothing is sent anywhere except the API you configure."
-                                           FontSize="12" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:PasswordBox x:Name="ApiKeyBox" PasswordChanged="ApiKeyBox_PasswordChanged" PlaceholderText="gsk_..."/>
-                                    <ui:Button Grid.Column="1" Content="Test connection" Click="TestApiKey_Click" Margin="8,0,0,0"/>
-                                </Grid>
-                            </StackPanel>
-                        </ui:Card>
-                        <ui:Card Margin="0,0,0,24" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="API base URL" FontWeight="Medium" Margin="0,0,0,2"/>
-                                <TextBlock Text="Groq by default. Any OpenAI-compatible endpoint works — Ollama, LM Studio, or your own server."
-                                           FontSize="12" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:TextBox x:Name="BaseUrlBox" PlaceholderText="https://api.groq.com/openai/v1"/>
-                            </StackPanel>
-                        </ui:Card>
-
-                        <ui:TextBlock FontTypography="BodyStrong" Text="Microphone &amp; language" Margin="0,0,0,8"/>
                         <ui:CardControl Margin="0,0,0,8">
                             <ui:CardControl.Icon>
                                 <ui:SymbolIcon Symbol="Mic24"/>
@@ -148,23 +99,62 @@
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </ui:CardControl.Header>
-                            <ComboBox x:Name="MicComboBox" Width="240"/>
+                            <ComboBox x:Name="MicComboBox" Width="220"/>
                         </ui:CardControl>
-                        <ui:CardControl Margin="0,0,0,24">
+
+                        <ui:CardControl Margin="0,0,0,8">
                             <ui:CardControl.Icon>
                                 <ui:SymbolIcon Symbol="BookOpenGlobe24"/>
                             </ui:CardControl.Icon>
                             <ui:CardControl.Header>
                                 <StackPanel>
                                     <TextBlock Text="Spoken language" FontWeight="Medium"/>
-                                    <TextBlock Text="Leave empty to detect automatically. Use a code like en or zh." FontSize="12"
+                                    <TextBlock Text="Empty = detect automatically. Or a code like en or zh." FontSize="12"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </ui:CardControl.Header>
-                            <ui:TextBox x:Name="LanguageBox" Width="120" PlaceholderText="auto"/>
+                            <ui:TextBox x:Name="LanguageBox" Width="110" PlaceholderText="auto"/>
                         </ui:CardControl>
 
-                        <ui:TextBlock FontTypography="BodyStrong" Text="Dictation behavior" Margin="0,0,0,8"/>
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="Color24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Theme" FontWeight="Medium"/>
+                                    <TextBlock Text="Match Windows, or pick one yourself." FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ComboBox x:Name="ThemeComboBox" Width="140" SelectionChanged="ThemeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Use Windows"/>
+                                <ComboBoxItem Content="Dark"/>
+                                <ComboBoxItem Content="Light"/>
+                            </ComboBox>
+                        </ui:CardControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ============ SYSTEM ============ -->
+                <ScrollViewer x:Name="PaneSystem" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="24,20,28,20">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="System" Margin="0,0,0,20"/>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="Games24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Stay out of fullscreen games" FontWeight="Medium"/>
+                                    <TextBlock Text="While a game owns the screen, CapsLock works normally and WinFlow keeps quiet." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch x:Name="PauseGamesCheckBox" IsChecked="True"/>
+                        </ui:CardControl>
+
                         <ui:CardControl Margin="0,0,0,8">
                             <ui:CardControl.Icon>
                                 <ui:SymbolIcon Symbol="KeyboardTab24"/>
@@ -178,6 +168,107 @@
                             </ui:CardControl.Header>
                             <ui:ToggleSwitch x:Name="PressEnterCheckBox"/>
                         </ui:CardControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ============ AI & MODELS ============ -->
+                <ScrollViewer x:Name="PaneAi" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="24,20,28,20">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="AI &amp; models" Margin="0,0,0,20"/>
+
+                        <ui:TextBlock FontTypography="BodyStrong" Text="Connection" Margin="0,0,0,8"/>
+                        <ui:Card Margin="0,0,0,8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Groq API key" FontWeight="Medium" Margin="0,0,0,2"/>
+                                <TextBlock Text="Your key stays on this PC, encrypted with Windows DPAPI."
+                                           FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ui:PasswordBox x:Name="ApiKeyBox" PasswordChanged="ApiKeyBox_PasswordChanged" PlaceholderText="gsk_..."/>
+                                    <ui:Button Grid.Column="1" Content="Test" Click="TestApiKey_Click" Margin="8,0,0,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </ui:Card>
+                        <ui:Card Margin="0,0,0,20" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="API base URL" FontWeight="Medium" Margin="0,0,0,2"/>
+                                <TextBlock Text="Groq by default. Any OpenAI-compatible endpoint works — Ollama, LM Studio, your own server."
+                                           FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
+                                <ui:TextBox x:Name="BaseUrlBox" PlaceholderText="https://api.groq.com/openai/v1"/>
+                            </StackPanel>
+                        </ui:Card>
+
+                        <DockPanel Margin="0,0,0,8">
+                            <ui:TextBlock FontTypography="BodyStrong" Text="Models" VerticalAlignment="Center"/>
+                            <ui:Button x:Name="RefreshModelsButton" Content="Refresh list" Click="RefreshModels_Click"
+                                       Appearance="Transparent" HorizontalAlignment="Right" Padding="8,2">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowClockwise24"/>
+                                </ui:Button.Icon>
+                            </ui:Button>
+                        </DockPanel>
+                        <TextBlock x:Name="ModelsStatusText" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                        <ui:Card Margin="0,0,0,8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Transcription — hears your words" FontWeight="Medium" Margin="0,0,0,8"/>
+                                <ui:AutoSuggestBox x:Name="TranscriptionModelBox" PlaceholderText="whisper-large-v3"
+                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                            </StackPanel>
+                        </ui:Card>
+                        <ui:Card Margin="0,0,0,8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Cleanup — writes them properly" FontWeight="Medium" Margin="0,0,0,8"/>
+                                <ui:AutoSuggestBox x:Name="PostProcessingModelBox" PlaceholderText="openai/gpt-oss-20b"
+                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                            </StackPanel>
+                        </ui:Card>
+                        <ui:Card Margin="0,0,0,8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Cleanup fallback" FontWeight="Medium" Margin="0,0,0,8"/>
+                                <ui:AutoSuggestBox x:Name="FallbackModelBox" PlaceholderText="qwen/qwen3-32b"
+                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                            </StackPanel>
+                        </ui:Card>
+                        <ui:Card Margin="0,0,0,8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Context vision — reads the room" FontWeight="Medium" Margin="0,0,0,8"/>
+                                <ui:AutoSuggestBox x:Name="ContextModelBox" PlaceholderText="meta-llama/llama-4-scout-17b-16e-instruct"
+                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                            </StackPanel>
+                        </ui:Card>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ============ PRIVACY ============ -->
+                <ScrollViewer x:Name="PanePrivacy" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="24,20,28,20">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="Privacy" Margin="0,0,0,4"/>
+                        <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                      Text="WinFlow has no servers of its own. Audio and text go only to the API endpoint you configure, and history stays on this PC."
+                                      TextWrapping="Wrap" Margin="0,0,0,20"/>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="MicSparkle24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Understand my screen" FontWeight="Medium"/>
+                                    <TextBlock Text="Reads the active window and a small screenshot so names and jargon come out right. Off = only your audio leaves this PC." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch x:Name="ContextCaptureCheckBox" IsChecked="True"/>
+                        </ui:CardControl>
+
                         <ui:CardControl Margin="0,0,0,8">
                             <ui:CardControl.Icon>
                                 <ui:SymbolIcon Symbol="ClipboardCheckmark24"/>
@@ -191,323 +282,57 @@
                             </ui:CardControl.Header>
                             <ui:ToggleSwitch x:Name="PreserveClipboardCheckBox" IsChecked="True"/>
                         </ui:CardControl>
-                        <ui:CardControl Margin="0,0,0,8">
-                            <ui:CardControl.Icon>
-                                <ui:SymbolIcon Symbol="MicSparkle24"/>
-                            </ui:CardControl.Icon>
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="Understand my screen" FontWeight="Medium"/>
-                                    <TextBlock Text="Reads the active window and a small screenshot so names and jargon come out right. Turn off to keep everything on-device until transcription." FontSize="12"
-                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <ui:ToggleSwitch x:Name="ContextCaptureCheckBox" IsChecked="True"/>
-                        </ui:CardControl>
-                    </StackPanel>
-                </ScrollViewer>
 
-                <!-- ================= MODELS ================= -->
-                <ScrollViewer x:Name="PageModels" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="32,24,32,24">
-                    <StackPanel MaxWidth="620" HorizontalAlignment="Left">
-                        <DockPanel Margin="0,0,0,4">
-                            <ui:TextBlock FontTypography="Title" Text="Models" VerticalAlignment="Center"/>
-                            <ui:Button x:Name="RefreshModelsButton" Content="Refresh list" Click="RefreshModels_Click"
-                                       Appearance="Transparent" HorizontalAlignment="Right" Padding="8,2">
-                                <ui:Button.Icon>
-                                    <ui:SymbolIcon Symbol="ArrowClockwise24"/>
-                                </ui:Button.Icon>
-                            </ui:Button>
-                        </DockPanel>
-                        <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                      Text="Pick from your endpoint's model list, or type any model id — custom endpoints work too. The defaults are fast and cheap on Groq."
-                                      TextWrapping="Wrap" Margin="0,0,0,4"/>
-                        <TextBlock x:Name="ModelsStatusText" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                   TextWrapping="Wrap" Margin="0,0,0,20"/>
-
-                        <ui:Card Margin="0,0,0,8" Padding="16">
+                        <ui:Card Padding="16" Margin="0,8,0,0">
                             <StackPanel>
-                                <TextBlock Text="Transcription — hears your words" FontWeight="Medium" Margin="0,0,0,2"/>
-                                <TextBlock Text="Whisper turns the recording into raw text." FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:AutoSuggestBox x:Name="TranscriptionModelBox" PlaceholderText="whisper-large-v3"
-                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
-                            </StackPanel>
-                        </ui:Card>
-                        <ui:Card Margin="0,0,0,8" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="Cleanup — writes them properly" FontWeight="Medium" Margin="0,0,0,2"/>
-                                <TextBlock Text="Removes filler, fixes punctuation, keeps your meaning. Never answers or executes what you said." FontSize="12"
-                                           TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:AutoSuggestBox x:Name="PostProcessingModelBox" PlaceholderText="openai/gpt-oss-20b"
-                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
-                            </StackPanel>
-                        </ui:Card>
-                        <ui:Card Margin="0,0,0,8" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="Cleanup fallback" FontWeight="Medium" Margin="0,0,0,2"/>
-                                <TextBlock Text="Tried once if the cleanup model fails." FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:AutoSuggestBox x:Name="FallbackModelBox" PlaceholderText="qwen/qwen3-32b"
-                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
-                            </StackPanel>
-                        </ui:Card>
-                        <ui:Card Margin="0,0,0,8" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="Context vision — reads the room" FontWeight="Medium" Margin="0,0,0,2"/>
-                                <TextBlock Text="Summarizes your screen in two sentences while you speak, so cleanup knows the topic." FontSize="12"
-                                           TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:AutoSuggestBox x:Name="ContextModelBox" PlaceholderText="meta-llama/llama-4-scout-17b-16e-instruct"
-                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                <TextBlock Text="What stays on this PC" FontWeight="Medium" Margin="0,0,0,6"/>
+                                <TextBlock FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Text="• Your API key (encrypted with Windows DPAPI)&#10;• Dictation history and word counts&#10;• Meeting notes and transcripts&#10;&#10;Nothing is uploaded anywhere except the API calls you configure. No telemetry, no analytics, no accounts."/>
                             </StackPanel>
                         </ui:Card>
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- ================= SHORTCUTS ================= -->
-                <ScrollViewer x:Name="PageShortcuts" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="32,24,32,24">
-                    <StackPanel MaxWidth="620" HorizontalAlignment="Left">
-                        <ui:TextBlock FontTypography="Title" Text="Shortcuts"/>
+                <!-- ============ PROMPTS ============ -->
+                <ScrollViewer x:Name="PanePrompts" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="24,20,28,20">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="Prompts" Margin="0,0,0,4"/>
                         <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                      Text="One key does everything. CapsLock still works as CapsLock when you hold Shift."
-                                      TextWrapping="Wrap" Margin="0,4,0,24"/>
-
-                        <ui:Card Margin="0,0,0,24" Padding="4">
-                            <StackPanel>
-                                <Grid Margin="12,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="200"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
-                                        <TextBlock Text="Hold CapsLock" FontFamily="Consolas" FontSize="12"/>
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Text="Keep it held a moment, then speak; release to paste." VerticalAlignment="Center"
-                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </Grid>
-                                <Grid Margin="12,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="200"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
-                                        <TextBlock Text="Double-tap CapsLock" FontFamily="Consolas" FontSize="12"/>
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Text="Two quick taps lock recording on — talk hands-free. A single tap does nothing." VerticalAlignment="Center"
-                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </Grid>
-                                <Grid Margin="12,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="200"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
-                                        <TextBlock Text="Tap while locked" FontFamily="Consolas" FontSize="12"/>
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Text="Stop and paste." VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </Grid>
-                                <Grid Margin="12,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="200"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
-                                        <TextBlock Text="Shift + CapsLock" FontFamily="Consolas" FontSize="12"/>
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Text="The normal CapsLock toggle, untouched." VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </Grid>
-                                <Grid Margin="12,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="200"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
-                                        <TextBlock Text="Esc" FontFamily="Consolas" FontSize="12"/>
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Text="Throw the recording away. Nothing is pasted." VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </Grid>
-                            </StackPanel>
-                        </ui:Card>
-
-                        <ui:CardControl>
-                            <ui:CardControl.Icon>
-                                <ui:SymbolIcon Symbol="Games24"/>
-                            </ui:CardControl.Icon>
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="Stay out of fullscreen games" FontWeight="Medium"/>
-                                    <TextBlock Text="While a game owns the screen, CapsLock works normally and WinFlow keeps quiet." FontSize="12"
-                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <ui:ToggleSwitch x:Name="PauseGamesCheckBox" IsChecked="True"/>
-                        </ui:CardControl>
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- ================= VOCABULARY ================= -->
-                <Grid x:Name="PageVocabulary" Grid.Row="0" Visibility="Collapsed" Margin="32,24,32,24" MaxWidth="620" HorizontalAlignment="Left">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <ui:TextBlock FontTypography="Title" Text="Vocabulary"/>
-                    <ui:TextBlock Grid.Row="1" FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                  Text="Names, products, jargon — one per line or comma-separated. Cleanup treats these as the correct spelling."
-                                  TextWrapping="Wrap" Margin="0,4,0,16"/>
-                    <ui:TextBox x:Name="VocabularyBox" Grid.Row="2" AcceptsReturn="True" TextWrapping="Wrap"
-                                VerticalAlignment="Stretch" VerticalContentAlignment="Top"
-                                PlaceholderText="Kubernetes&#10;Aysha&#10;WinFlow"/>
-                </Grid>
-
-                <!-- ================= VOICE MACROS ================= -->
-                <Grid x:Name="PageMacros" Grid.Row="0" Visibility="Collapsed" Margin="32,24,32,24" MaxWidth="620" HorizontalAlignment="Left">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ui:TextBlock FontTypography="Title" Text="Voice macros"/>
-                    <ui:TextBlock Grid.Row="1" FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                  Text="Say the trigger phrase, get the replacement text — instantly, no AI involved. Works even without an API key."
-                                  TextWrapping="Wrap" Margin="0,4,0,16"/>
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="36"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="When I say" FontWeight="Medium" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="2,0,0,0"/>
-                                <TextBlock Grid.Column="1" Text="Type this" FontWeight="Medium" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="10,0,0,0"/>
-                            </Grid>
-                            <ItemsControl x:Name="MacrosList">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="220"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="36"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ui:TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
-                                                        PlaceholderText="my email"/>
-                                            <ui:TextBox Grid.Column="1" Margin="8,0,0,0"
-                                                        Text="{Binding Payload, UpdateSourceTrigger=PropertyChanged}"
-                                                        PlaceholderText="you@example.com"/>
-                                            <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6"
-                                                        Margin="4,0,0,0" VerticalAlignment="Center"
-                                                        Click="DeleteMacro_Click" Tag="{Binding}"
-                                                        ToolTip="Remove this macro">
-                                                <ui:SymbolIcon Symbol="Delete24" FontSize="16"/>
-                                            </ui:Button>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <ui:Button Content="Add macro" Click="AddMacro_Click" Appearance="Secondary" Margin="0,4,0,0">
-                                <ui:Button.Icon>
-                                    <ui:SymbolIcon Symbol="Add24"/>
-                                </ui:Button.Icon>
-                            </ui:Button>
-                        </StackPanel>
-                    </ScrollViewer>
-                    <TextBlock Grid.Row="3" Text="Example: say “my email” and WinFlow types you@example.com. Save to apply."
-                               FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,8,0,0"/>
-                </Grid>
-
-                <!-- ================= PROMPTS ================= -->
-                <ScrollViewer x:Name="PagePrompts" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="32,24,32,24">
-                    <StackPanel MaxWidth="620" HorizontalAlignment="Left">
-                        <ui:TextBlock FontTypography="Title" Text="Prompts"/>
-                        <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                      Text="The instructions behind cleanup and context. The defaults are battle-tested — edit only if you need to, and reset anytime."
-                                      TextWrapping="Wrap" Margin="0,4,0,24"/>
+                                      Text="The instructions behind cleanup and context. The defaults are battle-tested — edit only if you need to."
+                                      TextWrapping="Wrap" Margin="0,0,0,20"/>
 
                         <DockPanel Margin="0,0,0,8">
                             <ui:TextBlock FontTypography="BodyStrong" Text="Cleanup system prompt" VerticalAlignment="Center"/>
-                            <ui:Button Content="Reset to default" Click="ResetSystemPrompt_Click" HorizontalAlignment="Right"
+                            <ui:Button Content="Reset" Click="ResetSystemPrompt_Click" HorizontalAlignment="Right"
                                        Appearance="Transparent" Padding="8,2"/>
                         </DockPanel>
-                        <ui:TextBox x:Name="SystemPromptBox" Height="200" AcceptsReturn="True" TextWrapping="Wrap"
-                                    VerticalContentAlignment="Top" FontFamily="Consolas" FontSize="12" Margin="0,0,0,24"/>
+                        <ui:TextBox x:Name="SystemPromptBox" Height="180" AcceptsReturn="True" TextWrapping="Wrap"
+                                    VerticalContentAlignment="Top" FontFamily="Consolas" FontSize="12" Margin="0,0,0,20"/>
 
                         <DockPanel Margin="0,0,0,8">
                             <ui:TextBlock FontTypography="BodyStrong" Text="Context vision prompt" VerticalAlignment="Center"/>
-                            <ui:Button Content="Reset to default" Click="ResetContextPrompt_Click" HorizontalAlignment="Right"
+                            <ui:Button Content="Reset" Click="ResetContextPrompt_Click" HorizontalAlignment="Right"
                                        Appearance="Transparent" Padding="8,2"/>
                         </DockPanel>
-                        <ui:TextBox x:Name="ContextPromptBox" Height="140" AcceptsReturn="True" TextWrapping="Wrap"
+                        <ui:TextBox x:Name="ContextPromptBox" Height="130" AcceptsReturn="True" TextWrapping="Wrap"
                                     VerticalContentAlignment="Top" FontFamily="Consolas" FontSize="12"/>
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- ================= RUN LOG ================= -->
-                <Grid x:Name="PageRunLog" Grid.Row="0" Visibility="Collapsed" Margin="32,24,32,24">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ui:TextBlock FontTypography="Title" Text="Run log"/>
-                    <ui:TextBlock Grid.Row="1" FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                  Text="The last 20 dictations, kept only on this PC. If a paste ever goes wrong, your words are here."
-                                  TextWrapping="Wrap" Margin="0,4,0,16"/>
-                    <Grid Grid.Row="2">
-                        <ui:DataGrid x:Name="HistoryDataGrid"
-                                     AutoGenerateColumns="False"
-                                     IsReadOnly="True"
-                                     HeadersVisibility="Column">
-                            <ui:DataGrid.Columns>
-                                <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" Width="80"/>
-                                <DataGridTextColumn Header="Latency" Binding="{Binding LatencyMs, StringFormat={}{0} ms}" Width="90"/>
-                                <DataGridTextColumn Header="You said" Binding="{Binding RawTranscript}" Width="240"/>
-                                <DataGridTextColumn Header="Pasted" Binding="{Binding CleanedText}" Width="*"/>
-                                <DataGridCheckBoxColumn Header="Edit mode" Binding="{Binding IsCommandMode}" Width="90"/>
-                            </ui:DataGrid.Columns>
-                        </ui:DataGrid>
-                        <StackPanel x:Name="RunLogEmpty" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
-                            <ui:SymbolIcon Symbol="Mic24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Nothing here yet." FontWeight="Medium" HorizontalAlignment="Center" Margin="0,12,0,4"/>
-                            <TextBlock Text="Hold CapsLock and say something — it will show up here."
-                                       FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Grid>
-                    <ui:Button Grid.Row="3" Content="Refresh" Click="RefreshHistory_Click" Margin="0,12,0,0" HorizontalAlignment="Right">
+                <!-- footer -->
+                <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                        Padding="24,10" Background="{DynamicResource LayerFillColorDefaultBrush}">
+                    <ui:Button Content="Save changes" Click="SaveButton_Click" Appearance="Primary"
+                               HorizontalAlignment="Right" Height="32" Padding="18,4">
                         <ui:Button.Icon>
-                            <ui:SymbolIcon Symbol="ArrowClockwise24"/>
+                            <ui:SymbolIcon Symbol="Checkmark24"/>
                         </ui:Button.Icon>
                     </ui:Button>
-                </Grid>
-
-                <!-- ================= FOOTER ================= -->
-                <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                        Padding="32,12" Background="{DynamicResource LayerFillColorDefaultBrush}">
-                    <Grid>
-                        <TextBlock Text="WinFlow · your voice stays yours" VerticalAlignment="Center"
-                                   FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
-                        <ui:Button Content="Save changes" Click="SaveButton_Click" Appearance="Primary"
-                                   HorizontalAlignment="Right" Height="34" Padding="20,4">
-                            <ui:Button.Icon>
-                                <ui:SymbolIcon Symbol="Checkmark24"/>
-                            </ui:Button.Icon>
-                        </ui:Button>
-                    </Grid>
                 </Border>
 
                 <ui:SnackbarPresenter x:Name="SnackbarPresenter" Grid.Row="0" VerticalAlignment="Bottom" Margin="0,0,0,16"/>
             </Grid>
-            </ui:NavigationView.ContentOverlay>
-        </ui:NavigationView>
+        </Grid>
     </Grid>
 </ui:FluentWindow>

@@ -23,7 +23,9 @@ public partial class App : System.Windows.Application
     private AppState? _appState;
     private OverlayWindow? _overlayWindow;
     private SystemTrayManager? _trayManager;
-    private SettingsWindow? _settingsWindow;
+    private MainWindow? _mainWindow;
+    private MeetingRecorder? _meetingRecorder;
+    private MeetingNotesService? _notesService;
     private HttpClient? _httpClient;
     private bool _isShuttingDown;
 
@@ -66,17 +68,23 @@ public partial class App : System.Windows.Application
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         var settingsService = new LocalSettingsService();
         var settingsProvider = new SettingsProvider();
+        var historyStore = new LocalHistoryStore();
+        var transcription = new TranscriptionService(_httpClient, settingsProvider);
 
         _appState = new AppState(
             new WasapiAudioRecorder(),
             new KeyboardHookManager(),
             new WindowsContextService(),
-            new TranscriptionService(_httpClient, settingsProvider),
+            transcription,
             new ContextVisionService(_httpClient, settingsProvider),
             new PostProcessingService(_httpClient, settingsProvider),
             new WindowsTextInjector(settingsProvider),
             settingsService,
-            settingsProvider);
+            settingsProvider,
+            historyStore);
+
+        _meetingRecorder = new MeetingRecorder();
+        _notesService = new MeetingNotesService(transcription, _httpClient, settingsProvider);
 
         _ = InitializeAsync();
     }
@@ -99,11 +107,11 @@ public partial class App : System.Windows.Application
             _overlayWindow = new OverlayWindow(_appState);
             _trayManager = new SystemTrayManager(_appState);
 
-            _trayManager.OpenSettingsRequested += () => ShowSettings();
-            _trayManager.OpenRunLogRequested += () => ShowSettings(navigateToRunLog: true);
+            _trayManager.OpenSettingsRequested += () => ShowMain();
+            _trayManager.OpenRunLogRequested += () => ShowMain(navigateToHistory: true);
             _trayManager.ExitRequested += () => _ = ShutdownAsync();
 
-            ShowSettings();
+            ShowMain();
         }
         catch (Exception ex)
         {
@@ -117,27 +125,27 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private void ShowSettings(bool navigateToRunLog = false)
+    private void ShowMain(bool navigateToHistory = false)
     {
         if (_appState == null || _isShuttingDown) return;
 
-        if (_settingsWindow == null)
+        if (_mainWindow == null)
         {
-            _settingsWindow = new SettingsWindow(_appState, _httpClient!);
-            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            _mainWindow = new MainWindow(_appState, _httpClient!, _meetingRecorder!, _notesService!);
+            _mainWindow.Closed += (_, _) => _mainWindow = null;
         }
 
-        if (navigateToRunLog)
+        if (navigateToHistory)
         {
-            _settingsWindow.NavigateToRunLog();
+            _mainWindow.NavigateToHistory();
         }
 
-        _settingsWindow.Show();
-        if (_settingsWindow.WindowState == WindowState.Minimized)
+        _mainWindow.Show();
+        if (_mainWindow.WindowState == WindowState.Minimized)
         {
-            _settingsWindow.WindowState = WindowState.Normal;
+            _mainWindow.WindowState = WindowState.Normal;
         }
-        _settingsWindow.Activate();
+        _mainWindow.Activate();
     }
 
     /// <summary>
@@ -156,9 +164,10 @@ public partial class App : System.Windows.Application
                 await _appState.WaitForIdleAsync(1500);
             }
 
-            _settingsWindow?.CloseForShutdown();
+            _mainWindow?.CloseForShutdown();
             _overlayWindow?.Close();
             _trayManager?.Dispose();
+            _meetingRecorder?.Dispose();
             _appState?.Dispose();
             _httpClient?.Dispose();
         }

@@ -19,6 +19,7 @@ public class AppState : IDisposable
     private readonly ITextInjector _textInjector;
     private readonly ISettingsService _settingsService;
     private readonly SettingsProvider _settingsProvider;
+    private readonly IHistoryStore? _historyStore;
 
     private readonly List<PipelineHistoryItem> _history = new();
     private readonly object _historyLock = new();
@@ -105,7 +106,8 @@ public class AppState : IDisposable
         IPostProcessingService postProcessingService,
         ITextInjector textInjector,
         ISettingsService settingsService,
-        SettingsProvider? settingsProvider = null)
+        SettingsProvider? settingsProvider = null,
+        IHistoryStore? historyStore = null)
     {
         _audioRecorder = audioRecorder;
         _keyboardHook = keyboardHook;
@@ -116,11 +118,24 @@ public class AppState : IDisposable
         _textInjector = textInjector;
         _settingsService = settingsService;
         _settingsProvider = settingsProvider ?? new SettingsProvider();
+        _historyStore = historyStore;
     }
+
+    /// <summary>Persistent local history + lifetime stats (null in unit tests).</summary>
+    public IHistoryStore? HistoryStore => _historyStore;
 
     public async Task InitializeAsync()
     {
         _settingsProvider.Current = await _settingsService.LoadSettingsAsync();
+        if (_historyStore != null)
+        {
+            await _historyStore.LoadAsync();
+            lock (_historyLock)
+            {
+                _history.Clear();
+                _history.AddRange(_historyStore.Recent.Take(20));
+            }
+        }
 
         _audioRecorder.AudioLevelUpdated += level => AudioLevel = level;
         _keyboardHook.ActionTriggered += OnKeyboardAction;
@@ -433,6 +448,7 @@ public class AppState : IDisposable
 
     private void AddHistory(PipelineHistoryItem item)
     {
+        _historyStore?.Append(item);
         lock (_historyLock)
         {
             _history.Insert(0, item);

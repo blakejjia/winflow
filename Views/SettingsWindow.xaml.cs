@@ -8,15 +8,14 @@ using WinFlow.Core.Models;
 using WinFlow.Core.Pipeline;
 using WinFlow.Core.Prompts;
 using WinFlow.Core.Services;
-using Wpf.Ui;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
 namespace WinFlow.Views;
 
 /// <summary>
-/// A pure view over the app-lifetime <see cref="AppState"/>. Closing this window hides it
-/// (the tray keeps the pipeline alive); only the tray's Exit command ends the process.
+/// The settings dialog (opened from the main window's rail). Pure view over the
+/// app-lifetime AppState; closing just closes the dialog — the pipeline lives on.
 /// </summary>
 public partial class SettingsWindow : FluentWindow
 {
@@ -27,12 +26,6 @@ public partial class SettingsWindow : FluentWindow
     private bool _loadingSettings;
     private IReadOnlyList<ModelInfo> _models = Array.Empty<ModelInfo>();
     private bool _modelsLoading;
-    private System.Collections.ObjectModel.ObservableCollection<VoiceMacro> _macroRows = new();
-
-    private FrameworkElement[] Pages => new FrameworkElement[]
-    {
-        PageGeneral, PageModels, PageShortcuts, PageVocabulary, PageMacros, PagePrompts, PageRunLog
-    };
 
     public SettingsWindow(AppState appState, HttpClient httpClient)
     {
@@ -43,7 +36,6 @@ public partial class SettingsWindow : FluentWindow
         SystemThemeWatcher.Watch(this);
     }
 
-    /// <summary>Called by the app shutdown path so the window can actually close.</summary>
     public void CloseForShutdown()
     {
         _allowClose = true;
@@ -54,7 +46,6 @@ public partial class SettingsWindow : FluentWindow
     {
         if (!_allowClose)
         {
-            // Hide to tray instead of killing the dictation pipeline.
             e.Cancel = true;
             Hide();
             return;
@@ -65,56 +56,36 @@ public partial class SettingsWindow : FluentWindow
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
         LoadSettingsIntoUi();
+        ShowPane("General");
         if (_models.Count == 0 && !_modelsLoading)
         {
             _ = RefreshModelsAsync(quiet: true);
         }
     }
 
-    private void RootNavigation_ItemInvoked(NavigationView sender, RoutedEventArgs args)
-    {
-        if (args.OriginalSource is not NavigationViewItem item || item.Tag is not string tag)
-            return;
+    // ---------- rail ----------
 
-        ShowPage(tag);
-    }
-
-    /// <summary>
-    /// NavigationViewItem.OnClick only notifies the parent NavigationView when
-    /// TargetPageType is set; these items host in-place panels instead of pages,
-    /// so ItemInvoked never fires for them. Handle Click directly.
-    /// </summary>
-    private void NavItem_Click(object sender, RoutedEventArgs e)
+    private void SettingsTab_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is NavigationViewItem item && item.Tag is string tag)
+        if ((sender as FrameworkElement)?.Tag is string tag)
         {
-            ShowPage(tag);
+            ShowPane(tag);
         }
     }
 
-    private NavigationViewItem[] NavItems => new[]
+    private void ShowPane(string tag)
     {
-        NavGeneral, NavModels, NavShortcuts, NavVocabulary, NavMacros, NavPrompts, NavRunLog
-    };
-
-    private void ShowPage(string tag)
-    {
-        foreach (var page in Pages)
+        foreach (var pane in new[] { PaneGeneral, PaneSystem, PaneAi, PanePrivacy, PanePrompts })
         {
-            page.Visibility = page.Name == $"Page{tag}" ? Visibility.Visible : Visibility.Collapsed;
+            pane.Visibility = pane.Name == $"Pane{tag}" ? Visibility.Visible : Visibility.Collapsed;
         }
-
-        // Without TargetPageType the NavigationView never updates selection itself.
-        foreach (var item in NavItems)
+        foreach (var tab in new[] { TabGeneral, TabSystem, TabAi, TabPrivacy, TabPrompts })
         {
-            item.IsActive = Equals(item.Tag, tag);
-        }
-
-        if (tag == "RunLog")
-        {
-            RefreshHistoryGrid();
+            tab.Appearance = (string)tab.Tag == tag ? ControlAppearance.Secondary : ControlAppearance.Transparent;
         }
     }
+
+    // ---------- load / save ----------
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -161,6 +132,7 @@ public partial class SettingsWindow : FluentWindow
             PressEnterCheckBox.IsChecked = s.PressEnterAfterDictation;
             PreserveClipboardCheckBox.IsChecked = s.PreserveClipboard;
             ContextCaptureCheckBox.IsChecked = s.ContextCaptureEnabled;
+            PauseGamesCheckBox.IsChecked = s.PauseInFullscreenGames;
 
             ThemeComboBox.SelectedIndex = s.Theme switch { "Dark" => 1, "Light" => 2, _ => 0 };
 
@@ -168,9 +140,6 @@ public partial class SettingsWindow : FluentWindow
             PostProcessingModelBox.Text = s.PostProcessingModel;
             FallbackModelBox.Text = s.PostProcessingFallbackModel;
             ContextModelBox.Text = s.ContextModel;
-
-            PauseGamesCheckBox.IsChecked = s.PauseInFullscreenGames;
-            VocabularyBox.Text = s.CustomVocabulary;
 
             SystemPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomSystemPrompt)
                 ? s.CustomSystemPrompt
@@ -180,16 +149,7 @@ public partial class SettingsWindow : FluentWindow
                 ? s.CustomContextPrompt
                 : PromptTemplates.ContextSynthesisPrompt;
 
-            _macroRows = new System.Collections.ObjectModel.ObservableCollection<VoiceMacro>(
-                s.VoiceMacros.Select(m => new VoiceMacro { Id = m.Id, Command = m.Command, Payload = m.Payload }));
-            if (_macroRows.Count == 0)
-            {
-                _macroRows.Add(new VoiceMacro()); // one empty row so the fields are visible
-            }
-            MacrosList.ItemsSource = _macroRows;
-
             PopulateMicrophones(s.SelectedMicrophoneId);
-            RefreshHistoryGrid();
         }
         finally
         {
@@ -233,7 +193,77 @@ public partial class SettingsWindow : FluentWindow
         _currentApiKey = ApiKeyBox.Password;
     }
 
-    // ---------- Model catalog ----------
+    private async void SaveButton_Click(object sender, RoutedEventArgs e)
+    {
+        var s = _appState.Settings;
+
+        s.GroqApiKey = _currentApiKey.Trim();
+        s.ApiBaseUrl = BaseUrlBox.Text.Trim();
+        s.TranscriptionLanguage = LanguageBox.Text.Trim();
+        s.PressEnterAfterDictation = PressEnterCheckBox.IsChecked ?? false;
+        s.PreserveClipboard = PreserveClipboardCheckBox.IsChecked ?? true;
+        s.ContextCaptureEnabled = ContextCaptureCheckBox.IsChecked ?? true;
+        s.PauseInFullscreenGames = PauseGamesCheckBox.IsChecked ?? true;
+
+        s.TranscriptionModel = TranscriptionModelBox.Text.Trim();
+        s.PostProcessingModel = PostProcessingModelBox.Text.Trim();
+        s.PostProcessingFallbackModel = FallbackModelBox.Text.Trim();
+        s.ContextModel = ContextModelBox.Text.Trim();
+
+        var selectedMic = (MicComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        s.SelectedMicrophoneId = selectedMic ?? string.Empty;
+
+        var customSys = SystemPromptBox.Text.Trim();
+        s.CustomSystemPrompt = (customSys == PromptTemplates.DefaultSystemPrompt) ? string.Empty : customSys;
+
+        var customCtx = ContextPromptBox.Text.Trim();
+        s.CustomContextPrompt = (customCtx == PromptTemplates.ContextSynthesisPrompt) ? string.Empty : customCtx;
+
+        await _appState.SaveSettingsAsync(s);
+        _appState.ApplyShortcutSettings();
+
+        ShowSnackbar("Saved", "Changes apply to your next dictation — no restart needed.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
+    }
+
+    // ---------- connection test ----------
+
+    private async void TestApiKey_Click(object sender, RoutedEventArgs e)
+    {
+        var key = _currentApiKey.Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            ShowSnackbar("Add your API key first", "Paste a Groq key above, then test the connection.", ControlAppearance.Caution, SymbolRegular.Key24);
+            return;
+        }
+
+        var baseUrl = BaseUrlBox.Text.Trim().TrimEnd('/');
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/models");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+            var response = await _httpClient.SendAsync(request, cts.Token);
+            if (response.IsSuccessStatusCode)
+            {
+                ShowSnackbar("Connected", "The key and endpoint work. You're ready to dictate.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
+            }
+            else
+            {
+                ShowSnackbar($"Connection failed ({(int)response.StatusCode})",
+                    response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                        ? "The endpoint rejected this key. Check for typos or an expired key."
+                        : "The endpoint answered with an error. Check the base URL.",
+                    ControlAppearance.Danger, SymbolRegular.DismissCircle24);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowSnackbar("Couldn't reach the endpoint", ex.Message, ControlAppearance.Danger, SymbolRegular.DismissCircle24);
+        }
+    }
+
+    // ---------- model catalog ----------
 
     private async void RefreshModels_Click(object sender, RoutedEventArgs e)
     {
@@ -249,8 +279,6 @@ public partial class SettingsWindow : FluentWindow
 
         try
         {
-            // Use the URL/key currently in the editor, not the last saved ones, so
-            // "Test connection" and "Refresh list" agree with what the user sees.
             var preview = new AppSettings
             {
                 ApiBaseUrl = BaseUrlBox.Text.Trim(),
@@ -272,7 +300,7 @@ public partial class SettingsWindow : FluentWindow
             }
             else
             {
-                ModelsStatusText.Text = "Couldn't load the model list — check the API key and base URL on General. You can still type any model id.";
+                ModelsStatusText.Text = "Couldn't load the model list — check the API key and base URL. You can still type any model id.";
                 if (!quiet)
                 {
                     ShowSnackbar("No models loaded", "The endpoint didn't return a list. Check the key and URL, or type model ids manually.", ControlAppearance.Caution, SymbolRegular.Warning24);
@@ -323,54 +351,7 @@ public partial class SettingsWindow : FluentWindow
         }
     }
 
-    private async void TestApiKey_Click(object sender, RoutedEventArgs e)
-    {
-        var key = _currentApiKey.Trim();
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            ShowSnackbar("Add your API key first", "Paste a Groq key above, then test the connection.", ControlAppearance.Caution, SymbolRegular.Key24);
-            return;
-        }
-
-        var baseUrl = BaseUrlBox.Text.Trim().TrimEnd('/');
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/models");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-
-            var response = await _httpClient.SendAsync(request, cts.Token);
-            if (response.IsSuccessStatusCode)
-            {
-                ShowSnackbar("Connected", "The key and endpoint work. You're ready to dictate.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
-            }
-            else
-            {
-                ShowSnackbar($"Connection failed ({(int)response.StatusCode})",
-                    response.StatusCode == System.Net.HttpStatusCode.Unauthorized
-                        ? "The endpoint rejected this key. Check for typos or an expired key."
-                        : "The endpoint answered with an error. Check the base URL.",
-                    ControlAppearance.Danger, SymbolRegular.DismissCircle24);
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowSnackbar("Couldn't reach the endpoint", ex.Message, ControlAppearance.Danger, SymbolRegular.DismissCircle24);
-        }
-    }
-
-    private void AddMacro_Click(object sender, RoutedEventArgs e)
-    {
-        _macroRows.Add(new VoiceMacro());
-    }
-
-    private void DeleteMacro_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is VoiceMacro macro)
-        {
-            _macroRows.Remove(macro);
-        }
-    }
+    // ---------- prompts ----------
 
     private void ResetSystemPrompt_Click(object sender, RoutedEventArgs e)
     {
@@ -380,64 +361,6 @@ public partial class SettingsWindow : FluentWindow
     private void ResetContextPrompt_Click(object sender, RoutedEventArgs e)
     {
         ContextPromptBox.Text = PromptTemplates.ContextSynthesisPrompt;
-    }
-
-    public void NavigateToRunLog()
-    {
-        ShowPage("RunLog");
-    }
-
-    private void RefreshHistory_Click(object sender, RoutedEventArgs e)
-    {
-        RefreshHistoryGrid();
-    }
-
-    private void RefreshHistoryGrid()
-    {
-        var history = _appState.History;
-        HistoryDataGrid.ItemsSource = null;
-        HistoryDataGrid.ItemsSource = history;
-        RunLogEmpty.Visibility = history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private async void SaveButton_Click(object sender, RoutedEventArgs e)
-    {
-        var s = _appState.Settings;
-
-        s.GroqApiKey = _currentApiKey.Trim();
-        s.ApiBaseUrl = BaseUrlBox.Text.Trim();
-        s.TranscriptionLanguage = LanguageBox.Text.Trim();
-        s.PressEnterAfterDictation = PressEnterCheckBox.IsChecked ?? false;
-        s.PreserveClipboard = PreserveClipboardCheckBox.IsChecked ?? true;
-        s.ContextCaptureEnabled = ContextCaptureCheckBox.IsChecked ?? true;
-
-        s.TranscriptionModel = TranscriptionModelBox.Text.Trim();
-        s.PostProcessingModel = PostProcessingModelBox.Text.Trim();
-        s.PostProcessingFallbackModel = FallbackModelBox.Text.Trim();
-        s.ContextModel = ContextModelBox.Text.Trim();
-
-        s.PauseInFullscreenGames = PauseGamesCheckBox.IsChecked ?? true;
-        s.CustomVocabulary = VocabularyBox.Text.Trim();
-
-        var selectedMic = (MicComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
-        s.SelectedMicrophoneId = selectedMic ?? string.Empty;
-
-        var customSys = SystemPromptBox.Text.Trim();
-        s.CustomSystemPrompt = (customSys == PromptTemplates.DefaultSystemPrompt) ? string.Empty : customSys;
-
-        var customCtx = ContextPromptBox.Text.Trim();
-        s.CustomContextPrompt = (customCtx == PromptTemplates.ContextSynthesisPrompt) ? string.Empty : customCtx;
-
-        s.VoiceMacros = _macroRows
-            .Where(m => !string.IsNullOrWhiteSpace(m.Command))
-            .Select(m => new VoiceMacro { Id = m.Id, Command = m.Command.Trim(), Payload = m.Payload })
-            .ToList();
-
-        // Persists AND swaps the live instance shared by every API service.
-        await _appState.SaveSettingsAsync(s);
-        _appState.ApplyShortcutSettings();
-
-        ShowSnackbar("Saved", "Changes apply to your next dictation — no restart needed.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
     }
 
     private void ShowSnackbar(string title, string message, ControlAppearance appearance, SymbolRegular icon)

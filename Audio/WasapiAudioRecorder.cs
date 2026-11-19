@@ -148,7 +148,7 @@ public class WasapiAudioRecorder : IAudioRecorder
         });
     }
 
-    private static byte[] ConvertTo16kHzMono16(byte[] buffer, int bytesRecorded, WaveFormat format)
+    internal static byte[] ConvertTo16kHzMono16(byte[] buffer, int bytesRecorded, WaveFormat format)
     {
         // Extract samples as floats
         var channels = format.Channels;
