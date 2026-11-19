@@ -47,6 +47,18 @@ public class SystemTrayManager : IDisposable
         _appState.PhaseChanged += OnPhaseChanged;
     }
 
+    public void ShowNotification(string title, string message)
+    {
+        try
+        {
+            _notifyIcon.ShowBalloonTip(3000, title, message, ToolTipIcon.Info);
+        }
+        catch
+        {
+            // Ignore if notification fails
+        }
+    }
+
     private void OnPhaseChanged(PipelinePhase phase)
     {
         switch (phase)
