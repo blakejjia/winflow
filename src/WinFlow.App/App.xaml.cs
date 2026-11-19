@@ -45,6 +45,8 @@ public partial class App : System.Windows.Application
 
         try
         {
+            Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
+
             _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             var settingsService = new LocalSettingsService();
             var settings = await settingsService.LoadSettingsAsync();

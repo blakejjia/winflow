@@ -7,10 +7,12 @@ using WinFlow.Core.Models;
 using WinFlow.Core.Pipeline;
 using WinFlow.Core.Prompts;
 using WinFlow.Core.Services;
+using Wpf.Ui.Appearance;
+using Wpf.Ui.Controls;
 
 namespace WinFlow.App.Views;
 
-public partial class SettingsWindow : Window
+public partial class SettingsWindow : FluentWindow
 {
     private readonly AppState _appState;
     private readonly LocalSettingsService _settingsService;
@@ -23,6 +25,23 @@ public partial class SettingsWindow : Window
         _settingsService = new LocalSettingsService();
 
         LoadSettingsIntoUi();
+    }
+
+    private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ThemeComboBox == null) return;
+        switch (ThemeComboBox.SelectedIndex)
+        {
+            case 0:
+                ApplicationThemeManager.ApplySystemTheme();
+                break;
+            case 1:
+                ApplicationThemeManager.Apply(ApplicationTheme.Dark);
+                break;
+            case 2:
+                ApplicationThemeManager.Apply(ApplicationTheme.Light);
+                break;
+        }
     }
 
     private void LoadSettingsIntoUi()
@@ -98,7 +117,7 @@ public partial class SettingsWindow : Window
         var key = _currentApiKey.Trim();
         if (string.IsNullOrWhiteSpace(key))
         {
-            System.Windows.MessageBox.Show("Please enter an API key first.", "Test API Key", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show("Please enter an API key first.", "Test API Key", System.Windows.MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -112,17 +131,17 @@ public partial class SettingsWindow : Window
             var response = await client.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
-                System.Windows.MessageBox.Show("API key and endpoint successfully verified! Connection succeeded.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                System.Windows.MessageBox.Show("API key and endpoint successfully verified! Connection succeeded.", "Success", System.Windows.MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
                 var body = await response.Content.ReadAsStringAsync();
-                System.Windows.MessageBox.Show($"Verification failed with HTTP {response.StatusCode}:\n{body}", "Verification Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"Verification failed with HTTP {response.StatusCode}:\n{body}", "Verification Failed", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Connection failed: {ex.Message}", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            System.Windows.MessageBox.Show($"Connection failed: {ex.Message}", "Connection Error", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
