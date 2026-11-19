@@ -4,122 +4,54 @@ using System.Net.Http.Headers;
 using System.Windows;
 using System.Windows.Controls;
 using WinFlow.Audio;
-using WinFlow.Core.Models;
 using WinFlow.Core.Pipeline;
 using WinFlow.Core.Prompts;
-using WinFlow.Core.Services;
-using WinFlow.Tray;
-using WinFlow.WindowsInterops.Context;
-using WinFlow.WindowsInterops.Keyboard;
-using WinFlow.WindowsInterops.TextInsertion;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
 namespace WinFlow.Views;
 
+/// <summary>
+/// A pure view over the app-lifetime <see cref="AppState"/>. Closing this window hides it
+/// (the tray keeps the pipeline alive); only the tray's Exit command ends the process.
+/// </summary>
 public partial class SettingsWindow : FluentWindow
 {
-    private AppState? _appState;
-    private OverlayWindow? _overlayWindow;
-    private SystemTrayManager? _trayManager;
-    private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
-    private readonly LocalSettingsService _settingsService = new();
+    private readonly AppState _appState;
+    private readonly HttpClient _httpClient;
     private string _currentApiKey = string.Empty;
+    private bool _allowClose;
 
-    public SettingsWindow()
+    public SettingsWindow(AppState appState, HttpClient httpClient)
     {
         InitializeComponent();
+        _appState = appState;
+        _httpClient = httpClient;
         Loaded += OnWindowLoaded;
     }
 
-    public SettingsWindow(AppState appState) : this()
+    /// <summary>Called by the app shutdown path so the window can actually close.</summary>
+    public void CloseForShutdown()
     {
-        _appState = appState;
+        _allowClose = true;
+        Close();
     }
 
-    private async void OnWindowLoaded(object sender, RoutedEventArgs e)
+    protected override void OnClosing(CancelEventArgs e)
     {
-        Console.WriteLine("[WinFlow] Settings window opened. Initializing pipeline services...");
-        if (_appState == null)
+        if (!_allowClose)
         {
-            var settings = await _settingsService.LoadSettingsAsync();
-            var audio = new WasapiAudioRecorder();
-            var hook = new KeyboardHookManager();
-            var context = new WindowsContextService();
-            var transcription = new TranscriptionService(_httpClient, settings);
-            var vision = new ContextVisionService(_httpClient, settings);
-            var postProcessing = new PostProcessingService(_httpClient, settings);
-            var injector = new WindowsTextInjector();
-
-            _appState = new AppState(
-                audio,
-                hook,
-                context,
-                transcription,
-                vision,
-                postProcessing,
-                injector,
-                _settingsService);
-
-            await _appState.InitializeAsync();
-
-            _overlayWindow = new OverlayWindow(_appState);
-            _trayManager = new SystemTrayManager(_appState);
-
-            _trayManager.OpenSettingsRequested += () =>
-            {
-                Show();
-                WindowState = WindowState.Normal;
-                Activate();
-            };
-
-            _trayManager.OpenRunLogRequested += () =>
-            {
-                Show();
-                WindowState = WindowState.Normal;
-                NavigateToRunLog();
-                Activate();
-            };
-
-            _trayManager.ExitRequested += () =>
-            {
-                _trayManager?.Dispose();
-                _overlayWindow?.Close();
-                _appState?.Dispose();
-                _httpClient?.Dispose();
-                System.Windows.Application.Current.Shutdown();
-            };
-
-            Console.WriteLine("[WinFlow] Audio, keyboard hooks & system tray ready!");
-            Console.WriteLine("[WinFlow] Hold CapsLock anywhere to dictate speech to text.");
+            // Hide to tray instead of killing the dictation pipeline.
+            e.Cancel = true;
+            Hide();
+            return;
         }
+        base.OnClosing(e);
+    }
 
+    private void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
         LoadSettingsIntoUi();
-
-        // Bring window to foreground
-        Topmost = true;
-        Topmost = false;
-        Activate();
-        Focus();
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        Console.WriteLine("[WinFlow] Window closed by user. Terminating process cleanly...");
-        try
-        {
-            _trayManager?.Dispose();
-            _overlayWindow?.Close();
-            _appState?.Dispose();
-            _httpClient?.Dispose();
-        }
-        catch
-        {
-            // Ignore during exit
-        }
-        base.OnClosed(e);
-        System.Windows.Application.Current.Shutdown();
-        Environment.Exit(0);
     }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -141,7 +73,6 @@ public partial class SettingsWindow : FluentWindow
 
     private void LoadSettingsIntoUi()
     {
-        if (_appState == null) return;
         var s = _appState.Settings;
 
         _currentApiKey = s.GroqApiKey;
@@ -220,18 +151,18 @@ public partial class SettingsWindow : FluentWindow
         var baseUrl = BaseUrlBox.Text.Trim().TrimEnd('/');
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/models");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-            var response = await client.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
                 System.Windows.MessageBox.Show("API key and endpoint successfully verified! Connection succeeded.", "Success", System.Windows.MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
-                var body = await response.Content.ReadAsStringAsync();
+                var body = await response.Content.ReadAsStringAsync(cts.Token);
                 System.Windows.MessageBox.Show($"Verification failed with HTTP {response.StatusCode}:\n{body}", "Verification Failed", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -264,14 +195,12 @@ public partial class SettingsWindow : FluentWindow
 
     private void RefreshHistoryGrid()
     {
-        if (_appState == null) return;
         HistoryDataGrid.ItemsSource = null;
         HistoryDataGrid.ItemsSource = _appState.History;
     }
 
     private async void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_appState == null) return;
         var s = _appState.Settings;
 
         s.GroqApiKey = _currentApiKey.Trim();
@@ -298,7 +227,9 @@ public partial class SettingsWindow : FluentWindow
         var customCtx = ContextPromptBox.Text.Trim();
         s.CustomContextPrompt = (customCtx == PromptTemplates.ContextSynthesisPrompt) ? string.Empty : customCtx;
 
-        await _settingsService.SaveSettingsAsync(s);
+        // Persists AND swaps the live instance shared by every API service.
+        await _appState.SaveSettingsAsync(s);
+        _appState.ApplyShortcutSettings();
 
         StatusMessage.Text = "Settings saved successfully!";
         await Task.Delay(2000);

@@ -8,12 +8,17 @@ namespace WinFlow.Core.Services;
 public class TranscriptionService : ITranscriptionService
 {
     private readonly HttpClient _httpClient;
-    private readonly AppSettings _settings;
+    private readonly ISettingsProvider _settingsProvider;
 
     public TranscriptionService(HttpClient httpClient, AppSettings settings)
+        : this(httpClient, new FixedSettingsProvider(settings))
+    {
+    }
+
+    public TranscriptionService(HttpClient httpClient, ISettingsProvider settingsProvider)
     {
         _httpClient = httpClient;
-        _settings = settings;
+        _settingsProvider = settingsProvider;
     }
 
     public async Task<string> TranscribeAsync(byte[] wavBytes, string? language = null, CancellationToken ct = default)
@@ -21,20 +26,21 @@ public class TranscriptionService : ITranscriptionService
         if (wavBytes == null || wavBytes.Length == 0)
             return string.Empty;
 
-        var apiKey = !string.IsNullOrWhiteSpace(_settings.TranscriptionApiKey)
-            ? _settings.TranscriptionApiKey
-            : _settings.GroqApiKey;
+        var settings = _settingsProvider.Current;
+        var apiKey = !string.IsNullOrWhiteSpace(settings.TranscriptionApiKey)
+            ? settings.TranscriptionApiKey
+            : settings.GroqApiKey;
 
         if (string.IsNullOrWhiteSpace(apiKey))
             return string.Empty;
 
-        var baseUrl = !string.IsNullOrWhiteSpace(_settings.TranscriptionApiUrl)
-            ? _settings.TranscriptionApiUrl.TrimEnd('/')
-            : _settings.ApiBaseUrl.TrimEnd('/');
+        var baseUrl = !string.IsNullOrWhiteSpace(settings.TranscriptionApiUrl)
+            ? settings.TranscriptionApiUrl.TrimEnd('/')
+            : settings.ApiBaseUrl.TrimEnd('/');
 
         var endpoint = $"{baseUrl}/audio/transcriptions";
-        var model = !string.IsNullOrWhiteSpace(_settings.TranscriptionModel)
-            ? _settings.TranscriptionModel
+        var model = !string.IsNullOrWhiteSpace(settings.TranscriptionModel)
+            ? settings.TranscriptionModel
             : "whisper-large-v3";
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
@@ -47,7 +53,7 @@ public class TranscriptionService : ITranscriptionService
         content.Add(new StringContent(model), "model");
         content.Add(new StringContent("json"), "response_format");
 
-        var effectiveLanguage = !string.IsNullOrWhiteSpace(language) ? language : _settings.TranscriptionLanguage;
+        var effectiveLanguage = !string.IsNullOrWhiteSpace(language) ? language : settings.TranscriptionLanguage;
         if (!string.IsNullOrWhiteSpace(effectiveLanguage))
         {
             content.Add(new StringContent(effectiveLanguage), "language");

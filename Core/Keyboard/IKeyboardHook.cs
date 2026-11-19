@@ -21,4 +21,7 @@ public interface IKeyboardHook : IDisposable
     event Action<ShortcutAction>? ActionTriggered;
     void Start();
     void Stop();
+
+    /// <summary>Applies live shortcut settings (e.g. double-tap lock) without reinstalling the hook.</summary>
+    void UpdateSettings(bool doubleTapLockEnabled) { }
 }

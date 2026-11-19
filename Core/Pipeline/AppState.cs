@@ -18,6 +18,7 @@ public class AppState : IDisposable
     private readonly IPostProcessingService _postProcessingService;
     private readonly ITextInjector _textInjector;
     private readonly ISettingsService _settingsService;
+    private readonly SettingsProvider _settingsProvider;
 
     private readonly List<PipelineHistoryItem> _history = new();
     private readonly object _historyLock = new();
@@ -29,7 +30,13 @@ public class AppState : IDisposable
     private CancellationTokenSource? _currentCts;
     private TaskCompletionSource? _idleTcs;
 
-    public AppSettings Settings { get; private set; } = new();
+    /// <summary>
+    /// The live settings instance. Services share this through <see cref="SettingsProvider"/>
+    /// so saved changes take effect on the next pipeline run without a restart.
+    /// </summary>
+    public AppSettings Settings => _settingsProvider.Current;
+
+    public ISettingsProvider SettingsProvider => _settingsProvider;
 
     public PipelinePhase Phase
     {
@@ -79,7 +86,8 @@ public class AppState : IDisposable
         IContextVisionService contextVisionService,
         IPostProcessingService postProcessingService,
         ITextInjector textInjector,
-        ISettingsService settingsService)
+        ISettingsService settingsService,
+        SettingsProvider? settingsProvider = null)
     {
         _audioRecorder = audioRecorder;
         _keyboardHook = keyboardHook;
@@ -89,15 +97,23 @@ public class AppState : IDisposable
         _postProcessingService = postProcessingService;
         _textInjector = textInjector;
         _settingsService = settingsService;
+        _settingsProvider = settingsProvider ?? new SettingsProvider();
     }
 
     public async Task InitializeAsync()
     {
-        Settings = await _settingsService.LoadSettingsAsync();
+        _settingsProvider.Current = await _settingsService.LoadSettingsAsync();
 
         _audioRecorder.AudioLevelUpdated += level => AudioLevel = level;
         _keyboardHook.ActionTriggered += OnKeyboardAction;
+        ApplyShortcutSettings();
         _keyboardHook.Start();
+    }
+
+    /// <summary>Pushes the current shortcut settings into the keyboard hook.</summary>
+    public void ApplyShortcutSettings()
+    {
+        _keyboardHook.UpdateSettings(Settings.DoubleTapLockEnabled);
     }
 
     private void OnKeyboardAction(ShortcutAction action)
@@ -300,6 +316,16 @@ public class AppState : IDisposable
                 _history.RemoveAt(_history.Count - 1);
             }
         }
+    }
+
+    /// <summary>
+    /// Persists settings and swaps the live instance atomically so all services
+    /// observe the new values on their next request.
+    /// </summary>
+    public async Task SaveSettingsAsync(AppSettings settings)
+    {
+        await _settingsService.SaveSettingsAsync(settings);
+        _settingsProvider.Current = settings;
     }
 
     public async Task WaitForIdleAsync(int timeoutMs = 5000)

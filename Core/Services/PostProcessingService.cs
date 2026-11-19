@@ -10,12 +10,17 @@ namespace WinFlow.Core.Services;
 public class PostProcessingService : IPostProcessingService
 {
     private readonly HttpClient _httpClient;
-    private readonly AppSettings _settings;
+    private readonly ISettingsProvider _settingsProvider;
 
     public PostProcessingService(HttpClient httpClient, AppSettings settings)
+        : this(httpClient, new FixedSettingsProvider(settings))
+    {
+    }
+
+    public PostProcessingService(HttpClient httpClient, ISettingsProvider settingsProvider)
     {
         _httpClient = httpClient;
-        _settings = settings;
+        _settingsProvider = settingsProvider;
     }
 
     public async Task<string> CleanupTranscriptAsync(
@@ -28,11 +33,12 @@ public class PostProcessingService : IPostProcessingService
         if (string.IsNullOrWhiteSpace(rawTranscript))
             return string.Empty;
 
-        var apiKey = _settings.GroqApiKey;
+        var settings = _settingsProvider.Current;
+        var apiKey = settings.GroqApiKey;
         if (string.IsNullOrWhiteSpace(apiKey))
             return rawTranscript;
 
-        var baseUrl = _settings.ApiBaseUrl.TrimEnd('/');
+        var baseUrl = settings.ApiBaseUrl.TrimEnd('/');
         var endpoint = $"{baseUrl}/chat/completions";
 
         bool isEditMode = !string.IsNullOrWhiteSpace(selectedText);
@@ -51,8 +57,8 @@ CUSTOM_VOCABULARY: "{customVocabulary}"
         }
         else
         {
-            systemPrompt = !string.IsNullOrWhiteSpace(_settings.CustomSystemPrompt)
-                ? _settings.CustomSystemPrompt
+            systemPrompt = !string.IsNullOrWhiteSpace(settings.CustomSystemPrompt)
+                ? settings.CustomSystemPrompt
                 : PromptTemplates.DefaultSystemPrompt;
 
             userMessage = $"""
@@ -62,12 +68,12 @@ CUSTOM_VOCABULARY: "{customVocabulary}"
 """;
         }
 
-        var primaryModel = !string.IsNullOrWhiteSpace(_settings.PostProcessingModel)
-            ? _settings.PostProcessingModel
+        var primaryModel = !string.IsNullOrWhiteSpace(settings.PostProcessingModel)
+            ? settings.PostProcessingModel
             : "openai/gpt-oss-20b";
 
-        var fallbackModel = !string.IsNullOrWhiteSpace(_settings.PostProcessingFallbackModel)
-            ? _settings.PostProcessingFallbackModel
+        var fallbackModel = !string.IsNullOrWhiteSpace(settings.PostProcessingFallbackModel)
+            ? settings.PostProcessingFallbackModel
             : "qwen/qwen3.8-27b";
 
         try

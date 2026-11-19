@@ -10,12 +10,17 @@ namespace WinFlow.Core.Services;
 public class ContextVisionService : IContextVisionService
 {
     private readonly HttpClient _httpClient;
-    private readonly AppSettings _settings;
+    private readonly ISettingsProvider _settingsProvider;
 
     public ContextVisionService(HttpClient httpClient, AppSettings settings)
+        : this(httpClient, new FixedSettingsProvider(settings))
+    {
+    }
+
+    public ContextVisionService(HttpClient httpClient, ISettingsProvider settingsProvider)
     {
         _httpClient = httpClient;
-        _settings = settings;
+        _settingsProvider = settingsProvider;
     }
 
     public async Task<string> SynthesizeContextAsync(
@@ -24,16 +29,17 @@ public class ContextVisionService : IContextVisionService
         string windowTitle,
         CancellationToken ct = default)
     {
+        var settings = _settingsProvider.Current;
         var fallbackSummary = $"User is working in {appName} - {windowTitle}.";
-        if (string.IsNullOrWhiteSpace(_settings.GroqApiKey))
+        if (string.IsNullOrWhiteSpace(settings.GroqApiKey))
             return fallbackSummary;
 
-        var baseUrl = _settings.ApiBaseUrl.TrimEnd('/');
+        var baseUrl = settings.ApiBaseUrl.TrimEnd('/');
         var endpoint = $"{baseUrl}/chat/completions";
-        var model = !string.IsNullOrWhiteSpace(_settings.ContextModel) ? _settings.ContextModel : "qwen/qwen3.8-27b";
+        var model = !string.IsNullOrWhiteSpace(settings.ContextModel) ? settings.ContextModel : "qwen/qwen3.8-27b";
 
-        var systemPrompt = !string.IsNullOrWhiteSpace(_settings.CustomContextPrompt)
-            ? _settings.CustomContextPrompt
+        var systemPrompt = !string.IsNullOrWhiteSpace(settings.CustomContextPrompt)
+            ? settings.CustomContextPrompt
             : PromptTemplates.ContextSynthesisPrompt;
 
         var textContent = $"Foreground App: {appName}\nWindow Title: {windowTitle}";
@@ -67,7 +73,7 @@ public class ContextVisionService : IContextVisionService
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.GroqApiKey);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.GroqApiKey);
             request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(request, ct);
