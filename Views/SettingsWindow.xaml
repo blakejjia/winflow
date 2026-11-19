@@ -174,36 +174,47 @@
                 <!-- ============ AI & MODELS ============ -->
                 <ScrollViewer x:Name="PaneAi" Grid.Row="0" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="24,20,28,20">
                     <StackPanel MaxWidth="560" HorizontalAlignment="Left">
-                        <ui:TextBlock FontTypography="Title" Text="AI &amp; models" Margin="0,0,0,20"/>
+                        <ui:TextBlock FontTypography="Title" Text="AI &amp; models" Margin="0,0,0,4"/>
+                        <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                      Text="One connection, four jobs. Defaults are fast and cheap on Groq."
+                                      TextWrapping="Wrap" Margin="0,0,0,20"/>
 
-                        <ui:TextBlock FontTypography="BodyStrong" Text="Connection" Margin="0,0,0,8"/>
-                        <ui:Card Margin="0,0,0,8" Padding="16">
+                        <!-- Connection: one grouped card, rows separated by hairlines -->
+                        <ui:Card Padding="0" Margin="0,0,0,24">
                             <StackPanel>
-                                <TextBlock Text="Groq API key" FontWeight="Medium" Margin="0,0,0,2"/>
-                                <TextBlock Text="Your key stays on this PC, encrypted with Windows DPAPI."
-                                           FontSize="12" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <Grid>
+                                <Grid Margin="16,14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <ui:PasswordBox x:Name="ApiKeyBox" PasswordChanged="ApiKeyBox_PasswordChanged" PlaceholderText="gsk_..."/>
-                                    <ui:Button Grid.Column="1" Content="Test" Click="TestApiKey_Click" Margin="8,0,0,0"/>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Groq API key" FontWeight="Medium"/>
+                                        <TextBlock Text="Stays on this PC, encrypted with Windows DPAPI." FontSize="12"
+                                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:PasswordBox x:Name="ApiKeyBox" Width="220" PasswordChanged="ApiKeyBox_PasswordChanged" PlaceholderText="gsk_..."/>
+                                        <ui:Button Content="Test" Click="TestApiKey_Click" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="16,0"/>
+                                <Grid Margin="16,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="API base URL" FontWeight="Medium"/>
+                                        <TextBlock Text="Any OpenAI-compatible endpoint — Ollama, LM Studio, your own server." FontSize="12"
+                                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:TextBox x:Name="BaseUrlBox" Grid.Column="1" Width="260" VerticalAlignment="Center"
+                                                PlaceholderText="https://api.groq.com/openai/v1"/>
                                 </Grid>
                             </StackPanel>
                         </ui:Card>
-                        <ui:Card Margin="0,0,0,20" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="API base URL" FontWeight="Medium" Margin="0,0,0,2"/>
-                                <TextBlock Text="Groq by default. Any OpenAI-compatible endpoint works — Ollama, LM Studio, your own server."
-                                           FontSize="12" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10"/>
-                                <ui:TextBox x:Name="BaseUrlBox" PlaceholderText="https://api.groq.com/openai/v1"/>
-                            </StackPanel>
-                        </ui:Card>
 
-                        <DockPanel Margin="0,0,0,8">
+                        <DockPanel Margin="0,0,0,2">
                             <ui:TextBlock FontTypography="BodyStrong" Text="Models" VerticalAlignment="Center"/>
                             <ui:Button x:Name="RefreshModelsButton" Content="Refresh list" Click="RefreshModels_Click"
                                        Appearance="Transparent" HorizontalAlignment="Right" Padding="8,2">
@@ -216,32 +227,64 @@
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                    TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-                        <ui:Card Margin="0,0,0,8" Padding="16">
+                        <!-- Models: one grouped card, label left / picker right -->
+                        <ui:Card Padding="0">
                             <StackPanel>
-                                <TextBlock Text="Transcription — hears your words" FontWeight="Medium" Margin="0,0,0,8"/>
-                                <ui:AutoSuggestBox x:Name="TranscriptionModelBox" PlaceholderText="whisper-large-v3"
-                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
-                            </StackPanel>
-                        </ui:Card>
-                        <ui:Card Margin="0,0,0,8" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="Cleanup — writes them properly" FontWeight="Medium" Margin="0,0,0,8"/>
-                                <ui:AutoSuggestBox x:Name="PostProcessingModelBox" PlaceholderText="openai/gpt-oss-20b"
-                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
-                            </StackPanel>
-                        </ui:Card>
-                        <ui:Card Margin="0,0,0,8" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="Cleanup fallback" FontWeight="Medium" Margin="0,0,0,8"/>
-                                <ui:AutoSuggestBox x:Name="FallbackModelBox" PlaceholderText="qwen/qwen3-32b"
-                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
-                            </StackPanel>
-                        </ui:Card>
-                        <ui:Card Margin="0,0,0,8" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="Context vision — reads the room" FontWeight="Medium" Margin="0,0,0,8"/>
-                                <ui:AutoSuggestBox x:Name="ContextModelBox" PlaceholderText="meta-llama/llama-4-scout-17b-16e-instruct"
-                                                   TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                <Grid Margin="16,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="270"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Transcription" FontWeight="Medium"/>
+                                        <TextBlock Text="Hears your words" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:AutoSuggestBox x:Name="TranscriptionModelBox" Grid.Column="1" VerticalAlignment="Center"
+                                                       PlaceholderText="whisper-large-v3"
+                                                       TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="16,0"/>
+                                <Grid Margin="16,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="270"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Cleanup" FontWeight="Medium"/>
+                                        <TextBlock Text="Writes them properly" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:AutoSuggestBox x:Name="PostProcessingModelBox" Grid.Column="1" VerticalAlignment="Center"
+                                                       PlaceholderText="openai/gpt-oss-20b"
+                                                       TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="16,0"/>
+                                <Grid Margin="16,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="270"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Cleanup fallback" FontWeight="Medium"/>
+                                        <TextBlock Text="Tried once if cleanup fails" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:AutoSuggestBox x:Name="FallbackModelBox" Grid.Column="1" VerticalAlignment="Center"
+                                                       PlaceholderText="qwen/qwen3-32b"
+                                                       TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="16,0"/>
+                                <Grid Margin="16,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="270"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Context vision" FontWeight="Medium"/>
+                                        <TextBlock Text="Reads the room while you speak" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:AutoSuggestBox x:Name="ContextModelBox" Grid.Column="1" VerticalAlignment="Center"
+                                                       PlaceholderText="meta-llama/llama-4-scout-17b-16e-instruct"
+                                                       TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                </Grid>
                             </StackPanel>
                         </ui:Card>
                     </StackPanel>

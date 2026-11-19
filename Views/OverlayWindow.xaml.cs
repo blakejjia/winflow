@@ -70,6 +70,13 @@ public partial class OverlayWindow : Window
         // Establish the layered surface as fully transparent; UpdateLayeredWindow
         // takes over from the first pushed frame.
         SetLayeredWindowAttributes(_hwnd, 0, 0, LWA_ALPHA);
+
+        // The HWND must exist and be visible for UpdateLayeredWindow to present.
+        // Show it once here, then immediately clear the surface to zero alpha so
+        // WPF's own first paint (a black rectangle) never reaches the screen.
+        CenterAtTop();
+        Show();
+        PushPixels(); // _alpha == 0 -> fully transparent layered content
     }
 
     public void CenterAtTop()
@@ -146,11 +153,11 @@ public partial class OverlayWindow : Window
             Waveform.Tick();
         }
 
-        if (_alpha > 0.5)
+        if (_alpha > 0.5 || animating)
         {
             PushPixels();
         }
-        else if (!animating && _frameTimer != null)
+        else if (_frameTimer != null)
         {
             _frameTimer.Stop();
         }
@@ -264,8 +271,7 @@ public partial class OverlayWindow : Window
                     MorphTo(CircleSize, CircleSize, CircleSize / 2);
                     FadeTo(0, FadeOutTime, onCompleted: () =>
                     {
-                        _surfaceReady = false;
-                        PushPixels(); // one last fully-transparent push clears the surface
+                        PushPixels(); // final zero-alpha push clears the surface
                     });
                     break;
             }
@@ -300,6 +306,10 @@ public partial class OverlayWindow : Window
         _fadeTime = duration;
         _fadeCompleted = onCompleted;
         _fadeClock = System.Diagnostics.Stopwatch.StartNew();
+        if (alpha > 0)
+        {
+            CenterAtTop(); // UpdateLayeredWindow positions from Left/Top each push
+        }
         EnsureFrameLoop();
     }
 
