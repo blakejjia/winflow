@@ -15,7 +15,10 @@ $env:DOTNET_CLI_HOME = "$PSScriptRoot/../.dotnet"
 dotnet publish "$ProjectDir/WinFlow.App.csproj" `
     -c Release `
     -r win-x64 `
+    --no-restore `
     --self-contained true `
+    -m:1 `
+    -nr:false `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
