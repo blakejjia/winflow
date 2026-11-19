@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using WinFlow.Core.Pipeline;
 
@@ -8,6 +9,9 @@ public class SystemTrayManager : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly AppState _appState;
+    private readonly Icon _icon;
+    private readonly IntPtr _hIcon;
+    private readonly SynchronizationContext? _uiContext;
 
     public event Action? OpenSettingsRequested;
     public event Action? OpenRunLogRequested;
@@ -16,11 +20,13 @@ public class SystemTrayManager : IDisposable
     public SystemTrayManager(AppState appState)
     {
         _appState = appState;
+        _uiContext = SynchronizationContext.Current;
+        (_icon, _hIcon) = CreateAppIcon();
 
         _notifyIcon = new NotifyIcon
         {
             Text = "WinFlow - Context-Aware Voice Dictation",
-            Icon = CreateAppIcon(),
+            Icon = _icon,
             Visible = true
         };
 
@@ -47,7 +53,7 @@ public class SystemTrayManager : IDisposable
         _appState.PhaseChanged += OnPhaseChanged;
     }
 
-    private static Icon CreateAppIcon()
+    private static (Icon Icon, IntPtr HIcon) CreateAppIcon()
     {
         using var bitmap = new Bitmap(32, 32);
         using var g = Graphics.FromImage(bitmap);
@@ -56,13 +62,16 @@ public class SystemTrayManager : IDisposable
         g.FillEllipse(brush, 2, 2, 28, 28);
         using var font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
         using var textBrush = new SolidBrush(Color.White);
-        var format = new StringFormat
+        using var format = new StringFormat
         {
             Alignment = StringAlignment.Center,
             LineAlignment = StringAlignment.Center
         };
         g.DrawString("W", font, textBrush, new RectangleF(0, 0, 32, 32), format);
-        return Icon.FromHandle(bitmap.GetHicon());
+
+        // Icon.FromHandle does NOT own the HICON; keep it and DestroyIcon on dispose.
+        var hIcon = bitmap.GetHicon();
+        return (Icon.FromHandle(hIcon), hIcon);
     }
 
     public void ShowNotification(string title, string message)
@@ -79,18 +88,25 @@ public class SystemTrayManager : IDisposable
 
     private void OnPhaseChanged(PipelinePhase phase)
     {
-        switch (phase)
+        // Phase events arrive on pipeline threads; marshal tray updates to the UI thread.
+        if (_uiContext != null)
         {
-            case PipelinePhase.Recording:
-                _notifyIcon.Text = "WinFlow - Recording...";
-                break;
-            case PipelinePhase.Transcribing:
-                _notifyIcon.Text = "WinFlow - Transcribing...";
-                break;
-            default:
-                _notifyIcon.Text = "WinFlow - Idle (Hold CapsLock to speak)";
-                break;
+            _uiContext.Post(_ => UpdateTrayText(phase), null);
         }
+        else
+        {
+            UpdateTrayText(phase);
+        }
+    }
+
+    private void UpdateTrayText(PipelinePhase phase)
+    {
+        _notifyIcon.Text = phase switch
+        {
+            PipelinePhase.Recording => "WinFlow - Recording...",
+            PipelinePhase.Transcribing => "WinFlow - Transcribing...",
+            _ => "WinFlow - Idle (Hold CapsLock to speak)"
+        };
     }
 
     public void Dispose()
@@ -98,5 +114,14 @@ public class SystemTrayManager : IDisposable
         _appState.PhaseChanged -= OnPhaseChanged;
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _icon.Dispose();
+        if (_hIcon != IntPtr.Zero)
+        {
+            DestroyIcon(_hIcon);
+        }
     }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 }

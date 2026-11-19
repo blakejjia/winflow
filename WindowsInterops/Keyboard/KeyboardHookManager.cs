@@ -4,78 +4,128 @@ using WinFlow.Core.Keyboard;
 
 namespace WinFlow.WindowsInterops.Keyboard;
 
-public class KeyboardHookManager : WinFlow.Core.Keyboard.IKeyboardHook
+/// <summary>
+/// Installs WH_KEYBOARD_LL on a dedicated message-pump thread.
+/// The hook callback ONLY runs the state machine and queues actions; all pipeline work
+/// happens on the thread pool so a busy UI can never stall global keyboard input
+/// (a stalled LL hook is silently removed by Windows after its timeout).
+/// </summary>
+public class KeyboardHookManager : IKeyboardHook
 {
     private const int WH_KEYBOARD_LL = 13;
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_KEYUP = 0x0101;
     private const int WM_SYSKEYDOWN = 0x0104;
     private const int WM_SYSKEYUP = 0x0105;
+    private const uint WM_QUIT = 0x0012;
 
     private const int VK_CAPITAL = 0x14;
     private const int VK_ESCAPE = 0x1B;
     private const int VK_SHIFT = 0x10;
 
+    private const uint LLKHF_INJECTED = 0x10;
+
     private readonly CapsLockStateMachine _stateMachine = new();
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
+    private readonly object _lifecycleLock = new();
 
     private IntPtr _hookId = IntPtr.Zero;
-    private LowLevelKeyboardProc? _proc;
+    private LowLevelKeyboardProc? _proc; // rooted field: the native hook holds this delegate
     private Thread? _hookThread;
     private uint _hookThreadId;
+    private volatile bool _doubleTapLockEnabled = true;
 
     public event Action<ShortcutAction>? ActionTriggered;
 
+    public void UpdateSettings(bool doubleTapLockEnabled)
+    {
+        _doubleTapLockEnabled = doubleTapLockEnabled;
+        _stateMachine.DoubleTapLockEnabled = doubleTapLockEnabled;
+    }
+
     public void Start()
     {
-        if (_hookThread != null) return;
-
-        using var readyEvent = new ManualResetEventSlim(false);
-
-        _hookThread = new Thread(() =>
+        lock (_lifecycleLock)
         {
-            _hookThreadId = GetCurrentThreadId();
-            _proc = HookCallback;
-            using var curProcess = Process.GetCurrentProcess();
-            using var curModule = curProcess.MainModule!;
-            var modHandle = GetModuleHandle(curModule.ModuleName);
+            if (_hookThread != null) return;
 
-            _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, modHandle, 0);
-            readyEvent.Set();
+            using var readyEvent = new ManualResetEventSlim(false);
+            Exception? startError = null;
 
-            while (GetMessage(out var msg, IntPtr.Zero, 0, 0))
+            _hookThread = new Thread(() =>
             {
-                TranslateMessage(ref msg);
-                DispatchMessage(ref msg);
-            }
+                try
+                {
+                    _hookThreadId = GetCurrentThreadId();
+                    _proc = HookCallback;
 
-            if (_hookId != IntPtr.Zero)
+                    // WH_KEYBOARD_LL is a global hook: hMod may be NULL and the callback
+                    // runs on this installing thread's message loop.
+                    _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, IntPtr.Zero, 0);
+                    if (_hookId == IntPtr.Zero)
+                    {
+                        startError = new InvalidOperationException(
+                            $"SetWindowsHookEx(WH_KEYBOARD_LL) failed (Win32 error {Marshal.GetLastWin32Error()}).");
+                        return;
+                    }
+
+                    // Force the thread's message queue to exist before Start() returns,
+                    // so a fast Stop() cannot post WM_QUIT into the void.
+                    PeekMessage(out _, IntPtr.Zero, 0, 0, 0 /* PM_NOREMOVE */);
+                }
+                finally
+                {
+                    readyEvent.Set();
+                }
+
+                if (startError != null) return;
+
+                while (GetMessage(out var msg, IntPtr.Zero, 0, 0))
+                {
+                    TranslateMessage(ref msg);
+                    DispatchMessage(ref msg);
+                }
+
+                if (_hookId != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(_hookId);
+                    _hookId = IntPtr.Zero;
+                }
+            })
             {
-                UnhookWindowsHookEx(_hookId);
-                _hookId = IntPtr.Zero;
-            }
-        })
-        {
-            IsBackground = true,
-            Name = "WinFlow.KeyboardHookThread"
-        };
+                IsBackground = true,
+                Name = "WinFlow.KeyboardHookThread"
+            };
 
-        _hookThread.SetApartmentState(ApartmentState.STA);
-        _hookThread.Start();
-        readyEvent.Wait();
+            _hookThread.SetApartmentState(ApartmentState.STA);
+            _hookThread.Start();
+            readyEvent.Wait();
+
+            if (startError != null)
+            {
+                _hookThread = null;
+                _hookThreadId = 0;
+                _proc = null;
+                throw startError;
+            }
+        }
     }
 
     public void Stop()
     {
-        if (_hookThreadId != 0)
+        lock (_lifecycleLock)
         {
-            PostThreadMessage(_hookThreadId, 0x0012 /* WM_QUIT */, IntPtr.Zero, IntPtr.Zero);
-            _hookThread?.Join(1000);
-            _hookThread = null;
-            _hookThreadId = 0;
-        }
+            if (_hookThreadId != 0)
+            {
+                PostThreadMessage(_hookThreadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+                _hookThread?.Join(2000);
+                _hookThread = null;
+                _hookThreadId = 0;
+                _proc = null;
+            }
 
-        _stateMachine.Reset();
+            _stateMachine.Reset();
+        }
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -86,21 +136,26 @@ public class KeyboardHookManager : WinFlow.Core.Keyboard.IKeyboardHook
             bool isKeyDown = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
             bool isKeyUp = msg == WM_KEYUP || msg == WM_SYSKEYUP;
 
-            int vkCode = Marshal.ReadInt32(lParam);
+            var info = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+            int vkCode = (int)info.vkCode;
+            bool injected = (info.flags & LLKHF_INJECTED) != 0;
 
-            if (vkCode == VK_ESCAPE && isKeyDown && _stateMachine.IsRecording)
+            if (vkCode == VK_ESCAPE && isKeyDown && !injected && _stateMachine.IsRecording)
             {
                 _stateMachine.Reset();
-                ActionTriggered?.Invoke(ShortcutAction.EscapePressed);
+                Dispatch(ShortcutAction.EscapePressed);
                 return (IntPtr)1; // Consume escape
             }
 
-            if (vkCode == VK_CAPITAL && (isKeyDown || isKeyUp))
+            // Never intercept our own synthetic input (paste Ctrl+V etc. never uses CapsLock,
+            // but injected CapsLock from other tools must pass through untouched).
+            if (vkCode == VK_CAPITAL && (isKeyDown || isKeyUp) && !injected)
             {
                 bool isShiftDown = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
                 var dir = isKeyDown ? KeyDirection.Down : KeyDirection.Up;
                 long now = _stopwatch.ElapsedMilliseconds;
 
+                _stateMachine.DoubleTapLockEnabled = _doubleTapLockEnabled;
                 var action = _stateMachine.ProcessEvent(dir, isShiftDown, now);
                 if (action != null)
                 {
@@ -110,11 +165,11 @@ public class KeyboardHookManager : WinFlow.Core.Keyboard.IKeyboardHook
                         return CallNextHookEx(_hookId, nCode, wParam, lParam);
                     }
 
-                    ActionTriggered?.Invoke(action.Value);
+                    Dispatch(action.Value);
                     return (IntPtr)1; // Consume CapsLock to prevent native uppercase toggle
                 }
 
-                // If event was part of active recording or lock, suppress it
+                // Auto-repeat Downs and Ups during active recording/lock stay suppressed.
                 if (_stateMachine.IsRecording || _stateMachine.IsToggleLocked)
                 {
                     return (IntPtr)1;
@@ -125,12 +180,43 @@ public class KeyboardHookManager : WinFlow.Core.Keyboard.IKeyboardHook
         return CallNextHookEx(_hookId, nCode, wParam, lParam);
     }
 
+    /// <summary>
+    /// Queue the action off the hook thread. The callback must return fast; subscribers
+    /// (AppState) may do real work and must never block global input.
+    /// </summary>
+    private void Dispatch(ShortcutAction action)
+    {
+        var handlers = ActionTriggered;
+        if (handlers == null) return;
+        ThreadPool.UnsafeQueueUserWorkItem(_ =>
+        {
+            try
+            {
+                handlers(action);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[WinFlow] Keyboard action handler failed: {ex}");
+            }
+        }, null);
+    }
+
     public void Dispose()
     {
         Stop();
     }
 
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -141,9 +227,6 @@ public class KeyboardHookManager : WinFlow.Core.Keyboard.IKeyboardHook
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    private static extern IntPtr GetModuleHandle(string? lpModuleName);
 
     [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();
@@ -159,6 +242,11 @@ public class KeyboardHookManager : WinFlow.Core.Keyboard.IKeyboardHook
     private static extern bool GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
 
     [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool TranslateMessage(ref MSG lpMsg);
 
     [DllImport("user32.dll")]

@@ -5,17 +5,30 @@ namespace WinFlow.WindowsInterops.Keyboard;
 public class CapsLockStateMachine
 {
     private const long DoubleTapThresholdMs = 300;
-    private long _lastDownTimeMs = -1000;
     private long _lastUpTimeMs = -1000;
     private bool _inShiftPassThrough;
+    private bool _keyIsDown;
+    private bool _suppressNextUpTap;
 
     public bool IsRecording { get; private set; }
     public bool IsToggleLocked { get; private set; }
+
+    /// <summary>When false, double-tap never latches; every press is plain hold-to-talk.</summary>
+    public bool DoubleTapLockEnabled { get; set; } = true;
 
     public ShortcutAction? ProcessEvent(KeyDirection dir, bool isShiftDown, long timestampMs)
     {
         if (dir == KeyDirection.Down)
         {
+            // Windows sends repeated WM_KEYDOWN while the key is held (auto-repeat).
+            // Only the first Down of a physical press may start or stop dictation.
+            // The hook suppresses repeats itself while recording/locked/pass-through.
+            if (_keyIsDown)
+            {
+                return null;
+            }
+            _keyIsDown = true;
+
             if (isShiftDown || _inShiftPassThrough)
             {
                 _inShiftPassThrough = true;
@@ -26,24 +39,32 @@ public class CapsLockStateMachine
             {
                 IsToggleLocked = false;
                 IsRecording = false;
+                // The stop tap must not chain into a new double-tap lock.
+                _suppressNextUpTap = true;
+                _lastUpTimeMs = -1000;
                 return ShortcutAction.ToggleStopped;
             }
 
-            // Check if this Down is within double-tap window of the previous Up
-            if (timestampMs - _lastUpTimeMs <= DoubleTapThresholdMs)
+            if (DoubleTapLockEnabled && timestampMs - _lastUpTimeMs <= DoubleTapThresholdMs)
             {
                 IsToggleLocked = true;
                 IsRecording = true;
-                _lastDownTimeMs = timestampMs;
                 return ShortcutAction.ToggleLocked;
             }
 
             IsRecording = true;
-            _lastDownTimeMs = timestampMs;
             return ShortcutAction.HoldStarted;
         }
         else // KeyDirection.Up
         {
+            _keyIsDown = false;
+
+            if (_suppressNextUpTap)
+            {
+                _suppressNextUpTap = false;
+                return null;
+            }
+
             if (_inShiftPassThrough)
             {
                 _inShiftPassThrough = false;
@@ -72,7 +93,8 @@ public class CapsLockStateMachine
         IsRecording = false;
         IsToggleLocked = false;
         _inShiftPassThrough = false;
-        _lastDownTimeMs = -1000;
+        _keyIsDown = false;
+        _suppressNextUpTap = false;
         _lastUpTimeMs = -1000;
     }
 }

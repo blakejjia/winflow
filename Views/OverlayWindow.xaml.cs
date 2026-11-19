@@ -61,7 +61,9 @@ public partial class OverlayWindow : Window
 
     private void OnPhaseChanged(PipelinePhase phase)
     {
-        Dispatcher.Invoke(() =>
+        // Async marshal: pipeline events can originate on input/audio threads and must
+        // never block waiting on the UI thread.
+        Dispatcher.BeginInvoke(() =>
         {
             RecordingPanel.Visibility = Visibility.Collapsed;
             TranscribingPanel.Visibility = Visibility.Collapsed;
@@ -108,7 +110,7 @@ public partial class OverlayWindow : Window
 
     private void OnAudioLevelChanged(float level)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             Waveform.AudioLevel = level;
         });
@@ -116,7 +118,7 @@ public partial class OverlayWindow : Window
 
     private void OnErrorOccurred(string message)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             ErrorText.Text = $"⚠️ {message}";
         });

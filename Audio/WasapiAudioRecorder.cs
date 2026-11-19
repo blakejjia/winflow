@@ -31,7 +31,10 @@ public class WasapiAudioRecorder : IAudioRecorder
             var endpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             foreach (var endpoint in endpoints)
             {
-                devices.Add(new AudioDeviceInfo(endpoint.ID, endpoint.FriendlyName));
+                using (endpoint)
+                {
+                    devices.Add(new AudioDeviceInfo(endpoint.ID, endpoint.FriendlyName));
+                }
             }
         }
         catch
@@ -65,9 +68,17 @@ public class WasapiAudioRecorder : IAudioRecorder
                 }
             }
 
-            _capture = selectedDevice != null
-                ? new WasapiCapture(selectedDevice)
-                : new WasapiCapture();
+            try
+            {
+                _capture = selectedDevice != null
+                    ? new WasapiCapture(selectedDevice)
+                    : new WasapiCapture();
+            }
+            finally
+            {
+                // WasapiCapture holds its own COM reference; release ours.
+                selectedDevice?.Dispose();
+            }
 
             var waveFormat = _capture.WaveFormat;
 
@@ -97,6 +108,9 @@ public class WasapiAudioRecorder : IAudioRecorder
 
     public Task<byte[]> StopRecordingAsync()
     {
+        WasapiCapture? capture;
+        byte[] rawPcm;
+
         lock (_lock)
         {
             if (!_isRecording || _capture == null)
@@ -105,26 +119,33 @@ public class WasapiAudioRecorder : IAudioRecorder
             }
 
             _isRecording = false;
+            capture = _capture;
+            _capture = null;
+
+            rawPcm = _pcmStream?.ToArray() ?? Array.Empty<byte>();
+            _pcmStream?.Dispose();
+            _pcmStream = null;
+        }
+
+        // StopRecording waits for NAudio's capture thread to exit; never do that under
+        // our lock (DataAvailable also takes it) or on a keyboard-hook/UI thread.
+        return Task.Run(() =>
+        {
             try
             {
-                _capture.StopRecording();
+                capture.StopRecording();
             }
             catch
             {
-                // ignore
+                // Device may already be gone; the PCM captured so far is still valid.
+            }
+            finally
+            {
+                capture.Dispose();
             }
 
-            _capture.Dispose();
-            _capture = null;
-
-            var rawPcm = _pcmStream?.ToArray() ?? Array.Empty<byte>();
-            _pcmStream?.Dispose();
-            _pcmStream = null;
-
-            // Encode raw PCM into valid 16kHz 16-bit mono WAV file
-            var wav = WavEncoder.EncodePcm16(rawPcm, 16000, 1);
-            return Task.FromResult(wav);
-        }
+            return WavEncoder.EncodePcm16(rawPcm, 16000, 1);
+        });
     }
 
     private static byte[] ConvertTo16kHzMono16(byte[] buffer, int bytesRecorded, WaveFormat format)
@@ -194,13 +215,15 @@ public class WasapiAudioRecorder : IAudioRecorder
 
     public void Dispose()
     {
+        WasapiCapture? capture;
         lock (_lock)
         {
             _isRecording = false;
-            _capture?.Dispose();
+            capture = _capture;
             _capture = null;
             _pcmStream?.Dispose();
             _pcmStream = null;
         }
+        capture?.Dispose();
     }
 }
