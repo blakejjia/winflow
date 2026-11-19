@@ -29,8 +29,7 @@ WinFlow is a native Windows desktop utility for speech-to-text dictation and in-
 ### Building and Running
 
 ```powershell
-dotnet build WinFlow.slnx
-dotnet run --project src/WinFlow.App/WinFlow.App.csproj
+dotnet run
 ```
 
 Run unit tests:

@@ -23,11 +23,15 @@ public partial class App : System.Windows.Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        try { File.AppendAllText("startup.log", $"[{DateTime.Now}] OnStartup entered\n"); } catch { }
+
         const string mutexName = @"Global\WinFlow_SingleInstance_Mutex";
         _singleInstanceMutex = new Mutex(true, mutexName, out bool createdNew);
+        try { File.AppendAllText("startup.log", $"[{DateTime.Now}] Mutex createdNew: {createdNew}\n"); } catch { }
 
         if (!createdNew)
         {
+            try { File.AppendAllText("startup.log", $"[{DateTime.Now}] Exiting because not createdNew\n"); } catch { }
             System.Windows.MessageBox.Show(
                 "WinFlow is already running in your system tray!\n\nPlease check the bottom-right notification area, or hold CapsLock to speak.",
                 "WinFlow Already Running",
@@ -85,20 +89,25 @@ public partial class App : System.Windows.Application
                 settingsService);
 
             await _appState.InitializeAsync();
+            try { File.AppendAllText("startup.log", $"[{DateTime.Now}] _appState.InitializeAsync done\n"); } catch { }
 
             _overlayWindow = new OverlayWindow(_appState);
+            try { File.AppendAllText("startup.log", $"[{DateTime.Now}] _overlayWindow created\n"); } catch { }
 
             _trayManager = new SystemTrayManager(_appState);
             _trayManager.OpenSettingsRequested += () => ShowSettings();
             _trayManager.OpenRunLogRequested += () => ShowSettings(openRunLog: true);
             _trayManager.ExitRequested += ExitApp;
+            try { File.AppendAllText("startup.log", $"[{DateTime.Now}] _trayManager created\n"); } catch { }
 
             bool isMinimized = e.Args.Any(a => string.Equals(a, "--minimized", StringComparison.OrdinalIgnoreCase)
                                             || string.Equals(a, "-m", StringComparison.OrdinalIgnoreCase));
 
             if (!isMinimized)
             {
+                try { File.AppendAllText("startup.log", $"[{DateTime.Now}] Calling ShowSettings\n"); } catch { }
                 ShowSettings();
+                try { File.AppendAllText("startup.log", $"[{DateTime.Now}] ShowSettings returned\n"); } catch { }
             }
             else
             {
@@ -109,6 +118,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
+            try { File.AppendAllText("startup.log", $"[{DateTime.Now}] EXCEPTION in OnStartup: {ex}\n"); } catch { }
             LogException("StartupException", ex);
             System.Windows.MessageBox.Show(
                 $"Failed to start WinFlow:\n\n{ex.Message}\n\nStack Trace:\n{ex.StackTrace}",

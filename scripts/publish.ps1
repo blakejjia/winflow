@@ -1,7 +1,7 @@
 # WinFlow Single-File Release Publisher
 $ErrorActionPreference = "Stop"
 
-$ProjectDir = Resolve-Path "$PSScriptRoot/../src/WinFlow.App"
+$Project = Resolve-Path "$PSScriptRoot/../WinFlow.csproj"
 $OutputDir = Resolve-Path "$PSScriptRoot/../dist" -ErrorAction SilentlyContinue
 if (-not $OutputDir) {
     New-Item -ItemType Directory -Path "$PSScriptRoot/../dist" | Out-Null
@@ -12,7 +12,7 @@ Write-Host "Publishing WinFlow (win-x64 self-contained single-file)..." -Foregro
 
 $env:DOTNET_CLI_HOME = "$PSScriptRoot/../.dotnet"
 
-dotnet publish "$ProjectDir/WinFlow.App.csproj" `
+dotnet publish "$Project" `
     -c Release `
     -r win-x64 `
     --no-restore `
@@ -24,4 +24,4 @@ dotnet publish "$ProjectDir/WinFlow.App.csproj" `
     -p:EnableCompressionInSingleFile=true `
     -o "$OutputDir"
 
-Write-Host "`nWinFlow published successfully to: $OutputDir\WinFlow.App.exe" -ForegroundColor Green
+Write-Host "`nWinFlow published successfully to: $OutputDir\WinFlow.exe" -ForegroundColor Green

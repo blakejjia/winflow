@@ -17,9 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\WinFlow.Core\WinFlow.Core.csproj" />
-    <ProjectReference Include="..\..\src\WinFlow.Audio\WinFlow.Audio.csproj" />
-    <ProjectReference Include="..\..\src\WinFlow.WindowsInterops\WinFlow.WindowsInterops.csproj" />
+    <ProjectReference Include="..\..\WinFlow.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -11,13 +11,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WinFlow.Core\WinFlow.Core.csproj" />
-    <ProjectReference Include="..\WinFlow.Audio\WinFlow.Audio.csproj" />
-    <ProjectReference Include="..\WinFlow.WindowsInterops\WinFlow.WindowsInterops.csproj" />
+    <Compile Remove="tests\**;reference\**;docs\**" />
+    <EmbeddedResource Remove="tests\**;reference\**;docs\**" />
+    <None Remove="tests\**;reference\**;docs\**" />
+    <Page Remove="tests\**;reference\**;docs\**" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="NAudio.Wasapi" Version="22.0.0" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="WinFlow.Tests" />
   </ItemGroup>
 
 </Project>
