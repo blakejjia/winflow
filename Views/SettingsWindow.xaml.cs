@@ -169,7 +169,7 @@ public partial class SettingsWindow : FluentWindow
             FallbackModelBox.Text = s.PostProcessingFallbackModel;
             ContextModelBox.Text = s.ContextModel;
 
-            DoubleTapCheckBox.IsChecked = s.DoubleTapLockEnabled;
+            PauseGamesCheckBox.IsChecked = s.PauseInFullscreenGames;
             VocabularyBox.Text = s.CustomVocabulary;
 
             SystemPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomSystemPrompt)
@@ -416,7 +416,7 @@ public partial class SettingsWindow : FluentWindow
         s.PostProcessingFallbackModel = FallbackModelBox.Text.Trim();
         s.ContextModel = ContextModelBox.Text.Trim();
 
-        s.DoubleTapLockEnabled = DoubleTapCheckBox.IsChecked ?? true;
+        s.PauseInFullscreenGames = PauseGamesCheckBox.IsChecked ?? true;
         s.CustomVocabulary = VocabularyBox.Text.Trim();
 
         var selectedMic = (MicComboBox.SelectedItem as ComboBoxItem)?.Tag as string;

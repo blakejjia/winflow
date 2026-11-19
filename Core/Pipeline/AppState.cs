@@ -131,7 +131,7 @@ public class AppState : IDisposable
     /// <summary>Pushes the current shortcut settings into the keyboard hook.</summary>
     public void ApplyShortcutSettings()
     {
-        _keyboardHook.UpdateSettings(Settings.DoubleTapLockEnabled);
+        _keyboardHook.UpdateSettings(Settings.DoubleTapLockEnabled, Settings.PauseInFullscreenGames);
     }
 
     private void OnKeyboardAction(ShortcutAction action)

@@ -22,6 +22,6 @@ public interface IKeyboardHook : IDisposable
     void Start();
     void Stop();
 
-    /// <summary>Applies live shortcut settings (e.g. double-tap lock) without reinstalling the hook.</summary>
-    void UpdateSettings(bool doubleTapLockEnabled) { }
+    /// <summary>Applies live shortcut settings without reinstalling the hook.</summary>
+    void UpdateSettings(bool doubleTapLockEnabled, bool pauseInFullscreenGames = true) { }
 }

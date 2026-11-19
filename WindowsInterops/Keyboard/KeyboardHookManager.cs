@@ -38,12 +38,14 @@ public class KeyboardHookManager : IKeyboardHook
     private Thread? _hookThread;
     private uint _hookThreadId;
     private volatile bool _doubleTapLockEnabled = true;
+    private volatile bool _pauseInFullscreenGames = true;
 
     public event Action<ShortcutAction>? ActionTriggered;
 
-    public void UpdateSettings(bool doubleTapLockEnabled)
+    public void UpdateSettings(bool doubleTapLockEnabled, bool pauseInFullscreenGames = true)
     {
         _doubleTapLockEnabled = doubleTapLockEnabled;
+        _pauseInFullscreenGames = pauseInFullscreenGames;
         _stateMachine.DoubleTapLockEnabled = doubleTapLockEnabled;
     }
 
@@ -150,6 +152,19 @@ public class KeyboardHookManager : IKeyboardHook
                 _stateMachine.Reset();
                 Dispatch(ShortcutAction.EscapePressed);
                 return (IntPtr)1; // Consume escape
+            }
+
+            // Fullscreen games own the keyboard: pass CapsLock through untouched and
+            // reset any gesture state so nothing fires when the game exits mid-hold.
+            // (Detection is cached ~500ms; the check itself is a few Win32 calls.)
+            if (vkCode == VK_CAPITAL && _pauseInFullscreenGames && Context.FullscreenDetector.IsFullscreenAppActive())
+            {
+                if (_stateMachine.IsRecording || _stateMachine.IsToggleLocked || _stateMachine.IsWaitingSecondTap)
+                {
+                    _stateMachine.Reset();
+                    CancelGestureTimers();
+                }
+                return CallNextHookEx(_hookId, nCode, wParam, lParam);
             }
 
             // Never intercept our own synthetic input (paste Ctrl+V etc. never uses CapsLock,

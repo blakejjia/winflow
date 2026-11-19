@@ -335,16 +335,16 @@
 
                         <ui:CardControl>
                             <ui:CardControl.Icon>
-                                <ui:SymbolIcon Symbol="Record24"/>
+                                <ui:SymbolIcon Symbol="Games24"/>
                             </ui:CardControl.Icon>
                             <ui:CardControl.Header>
                                 <StackPanel>
-                                    <TextBlock Text="Double-tap to lock" FontWeight="Medium"/>
-                                    <TextBlock Text="Turn off if you keep triggering it by accident." FontSize="12"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="Stay out of fullscreen games" FontWeight="Medium"/>
+                                    <TextBlock Text="While a game owns the screen, CapsLock works normally and WinFlow keeps quiet." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </ui:CardControl.Header>
-                            <ui:ToggleSwitch x:Name="DoubleTapCheckBox" IsChecked="True"/>
+                            <ui:ToggleSwitch x:Name="PauseGamesCheckBox" IsChecked="True"/>
                         </ui:CardControl>
                     </StackPanel>
                 </ScrollViewer>

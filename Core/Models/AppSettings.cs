@@ -17,6 +17,9 @@ public class AppSettings
     /// <summary>"System", "Dark", or "Light".</summary>
     public string Theme { get; set; } = "System";
     public bool DoubleTapLockEnabled { get; set; } = true;
+
+    /// <summary>When true, CapsLock passes through untouched while a fullscreen game/app is active.</summary>
+    public bool PauseInFullscreenGames { get; set; } = true;
     public bool PreserveClipboard { get; set; } = true;
     public bool PressEnterAfterDictation { get; set; } = false;
     public bool ContextCaptureEnabled { get; set; } = true;
