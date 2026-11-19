@@ -18,7 +18,7 @@
             BorderThickness="1"
             CornerRadius="8"
             Padding="4"
-            MinWidth="230">
+            MinWidth="240">
         <Border.Effect>
             <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.35" Color="Black"/>
         </Border.Effect>
@@ -27,30 +27,30 @@
                        Text="WinFlow — hold CapsLock to speak"
                        FontSize="12"
                        Foreground="{DynamicResource TrayMenuSecondaryBrush}"
-                       Margin="12,8,12,6"/>
-            <Border Height="1" Background="{DynamicResource TrayMenuDividerBrush}" Margin="8,2"/>
-            <ui:Button x:Name="SettingsButton" Appearance="Transparent" HorizontalAlignment="Stretch"
-                       HorizontalContentAlignment="Left" Padding="10,8" Click="Settings_Click"
-                       Foreground="{DynamicResource TrayMenuTextBrush}">
+                       Margin="12,7,12,7"/>
+            <Border Height="1" Background="{DynamicResource TrayMenuDividerBrush}" Margin="8,2,8,4"/>
+            <ui:Button x:Name="SettingsButton" Style="{StaticResource TrayMenuItemButtonStyle}"
+                       Click="Settings_Click">
                 <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="Home24" FontSize="16" Margin="0,0,10,0"/>
+                    <ui:SymbolIcon Symbol="Home24" FontSize="16" Margin="0,0,11,0"
+                                   Foreground="{DynamicResource TrayMenuSecondaryBrush}"/>
                     <TextBlock Text="Open WinFlow" VerticalAlignment="Center"/>
                 </StackPanel>
             </ui:Button>
-            <ui:Button x:Name="RunLogButton" Appearance="Transparent" HorizontalAlignment="Stretch"
-                       HorizontalContentAlignment="Left" Padding="10,8" Click="RunLog_Click"
-                       Foreground="{DynamicResource TrayMenuTextBrush}">
+            <ui:Button x:Name="RunLogButton" Style="{StaticResource TrayMenuItemButtonStyle}"
+                       Click="RunLog_Click">
                 <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="History24" FontSize="16" Margin="0,0,10,0"/>
+                    <ui:SymbolIcon Symbol="History24" FontSize="16" Margin="0,0,11,0"
+                                   Foreground="{DynamicResource TrayMenuSecondaryBrush}"/>
                     <TextBlock Text="History" VerticalAlignment="Center"/>
                 </StackPanel>
             </ui:Button>
-            <Border Height="1" Background="{DynamicResource TrayMenuDividerBrush}" Margin="8,2"/>
-            <ui:Button x:Name="QuitButton" Appearance="Transparent" HorizontalAlignment="Stretch"
-                       HorizontalContentAlignment="Left" Padding="10,8" Click="Quit_Click"
-                       Foreground="{DynamicResource TrayMenuTextBrush}">
+            <Border Height="1" Background="{DynamicResource TrayMenuDividerBrush}" Margin="8,4,8,2"/>
+            <ui:Button x:Name="QuitButton" Style="{StaticResource TrayMenuItemButtonStyle}"
+                       Click="Quit_Click">
                 <StackPanel Orientation="Horizontal">
-                    <ui:SymbolIcon Symbol="Dismiss24" FontSize="16" Margin="0,0,10,0"/>
+                    <ui:SymbolIcon Symbol="Dismiss24" FontSize="16" Margin="0,0,11,0"
+                                   Foreground="{DynamicResource TrayMenuSecondaryBrush}"/>
                     <TextBlock Text="Quit WinFlow" VerticalAlignment="Center"/>
                 </StackPanel>
             </ui:Button>

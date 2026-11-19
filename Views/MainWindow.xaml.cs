@@ -107,8 +107,10 @@ public partial class MainWindow : FluentWindow
         {
             item.IsActive = Equals(item.Tag, tag);
         }
+        AnimatePageIn(Pages.First(p => p.Name == $"Page{tag}"));
 
-        bool editable = tag is "Snippets" or "Words";
+        bool editable = tag is "Snippets" or "Words"
+            || (tag == "Settings" && _settingsCategory != null);
         SaveButton.Visibility = editable ? Visibility.Visible : Visibility.Collapsed;
         SaveHintText.Text = editable ? "Changes apply after saving." : "";
 
@@ -205,12 +207,14 @@ public partial class MainWindow : FluentWindow
             _macroRows.Add(new VoiceMacro { Id = m.Id, Command = m.Command, Payload = m.Payload });
         }
         MacrosList.ItemsSource = _macroRows;
+        SnippetsEmpty.Visibility = _macroRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         VocabularyBox.Text = s.CustomVocabulary;
     }
 
     private void AddMacro_Click(object sender, RoutedEventArgs e)
     {
         _macroRows.Add(new VoiceMacro());
+        SnippetsEmpty.Visibility = Visibility.Collapsed;
     }
 
     private void DeleteMacro_Click(object sender, RoutedEventArgs e)
@@ -218,11 +222,20 @@ public partial class MainWindow : FluentWindow
         if ((sender as FrameworkElement)?.Tag is VoiceMacro macro)
         {
             _macroRows.Remove(macro);
+            SnippetsEmpty.Visibility = _macroRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
     private async void SaveButton_Click(object sender, RoutedEventArgs e)
     {
+        // A drilled-in settings pane owns saving while it is on screen.
+        if (_settingsCategory != null && _settingsPanel != null
+            && PageSettings.Visibility == Visibility.Visible)
+        {
+            await _settingsPanel.SaveAsync();
+            return;
+        }
+
         var s = _appState.Settings;
         s.CustomVocabulary = VocabularyBox.Text.Trim();
         s.VoiceMacros = _macroRows
@@ -354,9 +367,14 @@ public partial class MainWindow : FluentWindow
     private void ShowSettingsHome()
     {
         _settingsCategory = null;
-        SettingsBreadcrumb.ItemsSource = new[] { "Settings" };
+        SettingsTitleHome.Visibility = Visibility.Visible;
+        SettingsTitleParentLink.Visibility = Visibility.Collapsed;
+        SettingsTitleChevron.Visibility = Visibility.Collapsed;
+        SettingsTitleCurrent.Visibility = Visibility.Collapsed;
         SettingsHome.Visibility = Visibility.Visible;
         SettingsDetailHost.Visibility = Visibility.Collapsed;
+        SaveButton.Visibility = Visibility.Collapsed;
+        SaveHintText.Text = "";
         AnimatePageIn(SettingsHome);
     }
 
@@ -372,7 +390,11 @@ public partial class MainWindow : FluentWindow
     {
         _settingsCategory = tag;
         var label = SettingsCategories.FirstOrDefault(c => c.Tag == tag).Label ?? tag;
-        SettingsBreadcrumb.ItemsSource = new[] { "Settings", label };
+        SettingsTitleHome.Visibility = Visibility.Collapsed;
+        SettingsTitleParentLink.Visibility = Visibility.Visible;
+        SettingsTitleChevron.Visibility = Visibility.Visible;
+        SettingsTitleCurrent.Text = label;
+        SettingsTitleCurrent.Visibility = Visibility.Visible;
 
         if (_settingsPanel == null)
         {
@@ -383,28 +405,41 @@ public partial class MainWindow : FluentWindow
 
         SettingsHome.Visibility = Visibility.Collapsed;
         SettingsDetailHost.Visibility = Visibility.Visible;
+        SaveButton.Visibility = Visibility.Visible;
+        SaveHintText.Text = "Changes apply after saving.";
         AnimatePageIn(SettingsDetailHost);
     }
 
-    private void SettingsBreadcrumb_ItemClicked(object sender, RoutedEventArgs e)
+    private void SettingsTitleParent_Click(object sender, RoutedEventArgs e)
     {
-        if (e is not Wpf.Ui.Controls.BreadcrumbBarItemClickedEventArgs args) return;
-        if (args.Index == 0)
-        {
-            ShowSettingsHome();
-        }
+        ShowSettingsHome();
     }
+
+    private System.Windows.Threading.DispatcherTimer? _infoBarTimer;
 
     internal void ShowSnackbar(string title, string message, ControlAppearance appearance, SymbolRegular icon)
     {
-        var snackbar = new Snackbar(SnackbarPresenter)
+        StatusInfoBar.Severity = appearance switch
         {
-            Title = title,
-            Content = message,
-            Appearance = appearance,
-            Icon = new SymbolIcon(icon),
-            Timeout = TimeSpan.FromSeconds(4)
+            ControlAppearance.Success => InfoBarSeverity.Success,
+            ControlAppearance.Danger => InfoBarSeverity.Error,
+            ControlAppearance.Caution => InfoBarSeverity.Warning,
+            _ => InfoBarSeverity.Informational
         };
-        snackbar.Show();
+        StatusInfoBar.Title = title;
+        StatusInfoBar.Message = message;
+        StatusInfoBar.IsOpen = true;
+
+        _infoBarTimer ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _infoBarTimer.Stop();
+        _infoBarTimer.Tick -= CloseInfoBar;
+        _infoBarTimer.Tick += CloseInfoBar;
+        _infoBarTimer.Start();
+    }
+
+    private void CloseInfoBar(object? sender, EventArgs e)
+    {
+        _infoBarTimer?.Stop();
+        StatusInfoBar.IsOpen = false;
     }
 }

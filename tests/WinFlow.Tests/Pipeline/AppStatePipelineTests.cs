@@ -58,8 +58,12 @@ public class AppStatePipelineTests
     private class MockTranscriptionService : ITranscriptionService
     {
         public string Transcript { get; set; } = "hello world from mock";
+        public int CallCount;
         public Task<string> TranscribeAsync(byte[] wavBytes, string? language = null, CancellationToken ct = default)
-            => Task.FromResult(Transcript);
+        {
+            Interlocked.Increment(ref CallCount);
+            return Task.FromResult(Transcript);
+        }
     }
 
     private class MockContextVisionService : IContextVisionService
@@ -113,6 +117,7 @@ public class AppStatePipelineTests
         var settings = new MockSettingsService();
 
         var appState = new AppState(audio, hook, context, transcription, vision, post, injector, settings);
+        appState.MinimumDictationDuration = TimeSpan.Zero; // instant release is intentional here
         await appState.InitializeAsync();
 
         Assert.Equal(PipelinePhase.Idle, appState.Phase);
@@ -185,6 +190,7 @@ public class AppStatePipelineTests
         var injector = new MockTextInjector();
         var settings = new MockSettingsService { Settings = new AppSettings() }; // no key
         var appState = CreatePipeline(hook: hook, injector: injector, settings: settings);
+        appState.MinimumDictationDuration = TimeSpan.Zero;
         await appState.InitializeAsync();
 
         string? error = null;
@@ -205,6 +211,7 @@ public class AppStatePipelineTests
         var hook = new MockKeyboardHook();
         var settings = new MockSettingsService { Settings = new AppSettings() }; // no key -> error path
         var appState = CreatePipeline(hook: hook, settings: settings);
+        appState.MinimumDictationDuration = TimeSpan.Zero;
         await appState.InitializeAsync();
 
         // Subscribe BEFORE triggering so the error phase cannot be missed.
@@ -230,6 +237,44 @@ public class AppStatePipelineTests
     }
 
     [Fact]
+    public async Task AccidentalTap_ShorterThanMinimum_DiscardsWithoutTranscribing()
+    {
+        var hook = new MockKeyboardHook();
+        var transcription = new MockTranscriptionService();
+        var injector = new MockTextInjector();
+        var appState = CreatePipeline(hook: hook, transcription: transcription, injector: injector);
+        appState.MinimumDictationDuration = TimeSpan.FromSeconds(5); // release below is instant
+        await appState.InitializeAsync();
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        hook.Trigger(ShortcutAction.HoldReleased);
+        await appState.WaitForIdleAsync(5000);
+
+        Assert.Equal(PipelinePhase.Idle, appState.Phase);
+        Assert.Null(injector.InjectedText);
+        Assert.Empty(appState.History);
+        Assert.Equal(0, transcription.CallCount);
+    }
+
+    [Fact]
+    public async Task HoldLongerThanMinimum_StillTranscribes()
+    {
+        var hook = new MockKeyboardHook();
+        var injector = new MockTextInjector();
+        var appState = CreatePipeline(hook: hook, injector: injector);
+        appState.MinimumDictationDuration = TimeSpan.FromMilliseconds(150);
+        await appState.InitializeAsync();
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        await Task.Delay(250);
+        hook.Trigger(ShortcutAction.HoldReleased);
+        await appState.WaitForIdleAsync(5000);
+
+        Assert.NotNull(injector.InjectedText);
+        Assert.Single(appState.History);
+    }
+
+    [Fact]
     public async Task Pipeline_VoiceMacro_BypassesLlmCleanup()
     {
         var audio = new MockAudioRecorder();
@@ -251,6 +296,7 @@ public class AppStatePipelineTests
         };
 
         var appState = new AppState(audio, hook, context, transcription, vision, post, injector, settings);
+        appState.MinimumDictationDuration = TimeSpan.Zero;
         await appState.InitializeAsync();
 
         hook.Trigger(ShortcutAction.HoldStarted);

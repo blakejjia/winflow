@@ -135,6 +135,9 @@ public partial class TrayMenuWindow : Window
         SetBrush("TrayMenuTextBrush", dark ? "#F5FFFFFF" : "#E4000000");
         SetBrush("TrayMenuSecondaryBrush", dark ? "#99FFFFFF" : "#8A000000");
         SetBrush("TrayMenuDividerBrush", dark ? "#1EFFFFFF" : "#12000000");
+        // WinUI MenuFlyout item states: subtle fill on hover, quieter on press.
+        SetBrush("TrayMenuHoverBrush", dark ? "#14FFFFFF" : "#0A000000");
+        SetBrush("TrayMenuPressedBrush", dark ? "#0DFFFFFF" : "#06000000");
     }
 
     protected override void OnSourceInitialized(EventArgs e)

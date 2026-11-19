@@ -3,30 +3,25 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:WinFlow.Controls"
         Title="WinFlow HUD"
-        Width="280" Height="90"
+        Width="244" Height="56"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        Background="{x:Null}"
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         ShowActivated="False"
         Focusable="False">
 
-    <!-- Plain WPF transparency: this path is known to render on this machine.
-         The window is barely larger than the pill, so any composition artifact
-         is confined to a few pixels around it. -->
-    <Grid>
+    <!-- The canvas is rendered off-window into a layered surface; the Window visual
+         itself never paints. Pill is centered via negative margins (Canvas has no
+         alignment), sized/animated from code. -->
+    <Canvas x:Name="RootCanvas" Width="244" Height="56" Background="{x:Null}">
         <Border x:Name="PillBorder"
                 Background="#FF000000"
-                CornerRadius="19"
-                Width="96" Height="38"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                RenderTransformOrigin="0.5,0.5">
-            <Border.RenderTransform>
-                <ScaleTransform x:Name="PillScale" ScaleX="1" ScaleY="1"/>
-            </Border.RenderTransform>
+                BorderBrush="#2EFFFFFF" BorderThickness="1"
+                CornerRadius="15"
+                Width="76" Height="30"
+                Canvas.Left="84" Canvas.Top="0">
             <Grid>
                 <!-- Listening: breathing white bars -->
                 <controls:WaveformVisualizer x:Name="Waveform" Visibility="Visible"
@@ -66,5 +61,5 @@
                 </StackPanel>
             </Grid>
         </Border>
-    </Grid>
+    </Canvas>
 </Window>

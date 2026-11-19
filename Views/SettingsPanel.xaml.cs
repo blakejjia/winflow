@@ -82,6 +82,7 @@ public partial class SettingsPanel : System.Windows.Controls.UserControl
                 ApplicationThemeManager.ApplySystemTheme();
                 break;
         }
+        WinFlowTheme.Apply();
     }
 
     private void LoadSettingsIntoUi()
@@ -159,7 +160,8 @@ public partial class SettingsPanel : System.Windows.Controls.UserControl
         _currentApiKey = ApiKeyBox.Password;
     }
 
-    private async void SaveButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>Invoked by MainWindow's footer Save button while a settings pane is shown.</summary>
+    internal async Task SaveAsync()
     {
         var s = _appState.Settings;
 
@@ -329,16 +331,31 @@ public partial class SettingsPanel : System.Windows.Controls.UserControl
         ContextPromptBox.Text = PromptTemplates.ContextSynthesisPrompt;
     }
 
-    private void ShowSnackbar(string title, string message, ControlAppearance appearance, SymbolRegular icon)
+    private System.Windows.Threading.DispatcherTimer? _infoBarTimer;
+
+    internal void ShowSnackbar(string title, string message, ControlAppearance appearance, SymbolRegular icon)
     {
-        var snackbar = new Snackbar(SnackbarPresenter)
+        StatusInfoBar.Severity = appearance switch
         {
-            Title = title,
-            Content = message,
-            Appearance = appearance,
-            Icon = new SymbolIcon(icon),
-            Timeout = TimeSpan.FromSeconds(4)
+            ControlAppearance.Success => InfoBarSeverity.Success,
+            ControlAppearance.Danger => InfoBarSeverity.Error,
+            ControlAppearance.Caution => InfoBarSeverity.Warning,
+            _ => InfoBarSeverity.Informational
         };
-        snackbar.Show();
+        StatusInfoBar.Title = title;
+        StatusInfoBar.Message = message;
+        StatusInfoBar.IsOpen = true;
+
+        _infoBarTimer ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _infoBarTimer.Stop();
+        _infoBarTimer.Tick -= CloseInfoBar;
+        _infoBarTimer.Tick += CloseInfoBar;
+        _infoBarTimer.Start();
+    }
+
+    private void CloseInfoBar(object? sender, EventArgs e)
+    {
+        _infoBarTimer?.Stop();
+        StatusInfoBar.IsOpen = false;
     }
 }

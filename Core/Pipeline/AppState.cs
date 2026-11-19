@@ -32,6 +32,15 @@ public class AppState : IDisposable
     private readonly object _stateLock = new();
 
     private PipelinePhase _phase = PipelinePhase.Idle;
+    private long _recordingStartTimestamp;
+
+    /// <summary>
+    /// Holds shorter than this are treated as accidental taps: the audio is
+    /// discarded without transcription. Whisper hallucinates phrases like
+    /// "Thank you" on near-silence, so a stray tap must never reach the model.
+    /// Internal setter exists for tests.
+    /// </summary>
+    internal TimeSpan MinimumDictationDuration { get; set; } = TimeSpan.FromSeconds(1);
     private float _audioLevel;
     private int _runGeneration;
     private Task<AppContextSnapshot>? _contextSnapshotTask;
@@ -183,6 +192,7 @@ public class AppState : IDisposable
             _currentCts = new CancellationTokenSource();
             ct = _currentCts.Token;
             _phase = PipelinePhase.Recording;
+            _recordingStartTimestamp = Stopwatch.GetTimestamp();
         }
         PhaseChanged?.Invoke(PipelinePhase.Recording);
 
@@ -230,6 +240,13 @@ public class AppState : IDisposable
 
     private void StopDictation()
     {
+        // Accidental tap: discard silently, exactly like Escape.
+        if (Stopwatch.GetElapsedTime(_recordingStartTimestamp) < MinimumDictationDuration)
+        {
+            CancelDictation();
+            return;
+        }
+
         CancellationToken ct;
         Task<AppContextSnapshot>? snapshotTask;
         Task<string>? visionTask;

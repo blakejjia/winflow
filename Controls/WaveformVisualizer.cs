@@ -13,17 +13,27 @@ namespace WinFlow.Controls;
 /// </summary>
 public class WaveformVisualizer : StackPanel
 {
-    private const int BarCount = 5;
-    private const double BarMinHeight = 4.0;
-    private const double BarMaxHeight = 22.0;
+    private const int BarCount = 7;
+    private const double BarMinHeight = 3.0;
+    private const double BarMaxHeight = 17.0;
     private const double SlotHeight = BarMaxHeight + 4;
+    private const double SlotWidth = 6.0;
+    private const double BarWidth = 3.0;
 
     private readonly WpfRectangle[] _bars = new WpfRectangle[BarCount];
 
-    // Per-bar sway: distinct periods and phases so they never move in lockstep.
-    private static readonly double[] SwayPeriodSeconds = { 1.7, 2.3, 1.9, 2.1, 1.5 };
-    private static readonly double[] SwayPhase = { 0.0, 1.3, 2.6, 0.7, 1.9 };
-    private static readonly double[] LevelWeight = { 0.75, 0.95, 1.0, 0.9, 0.7 };
+    // Two incommensurate periods per bar: their sum never repeats visibly, so the
+    // row shimmers organically instead of sweeping left-to-right like one wave.
+    private static readonly double[] PeriodA = { 1.71, 2.33, 1.94, 2.12, 1.53, 2.47, 1.82 };
+    private static readonly double[] PeriodB = { 0.83, 1.09, 0.71, 1.31, 0.97, 0.67, 1.17 };
+    private static readonly double[] PhaseA  = { 0.0, 1.3, 2.6, 0.7, 1.9, 4.1, 5.3 };
+    private static readonly double[] PhaseB  = { 2.1, 0.4, 5.0, 3.3, 1.1, 2.8, 0.9 };
+    private static readonly double[] LevelWeight = { 0.65, 0.85, 0.95, 1.0, 0.9, 0.8, 0.6 };
+
+    private readonly double[] _drift = new double[BarCount];
+    private readonly double[] _driftTarget = new double[BarCount];
+    private readonly Random _rng = new();
+    private double _nextDriftPick;
 
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
     private double _displayLevel;   // smoothed toward _targetLevel each frame
@@ -51,13 +61,13 @@ public class WaveformVisualizer : StackPanel
 
         for (int i = 0; i < BarCount; i++)
         {
-            var slot = new Grid { Width = 8, Height = SlotHeight };
+            var slot = new Grid { Width = SlotWidth, Height = SlotHeight };
             _bars[i] = new WpfRectangle
             {
-                Width = 3.5,
+                Width = BarWidth,
                 Height = BarMinHeight,
-                RadiusX = 1.75,
-                RadiusY = 1.75,
+                RadiusX = 1.5,
+                RadiusY = 1.5,
                 Fill = System.Windows.Media.Brushes.White,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center
@@ -89,11 +99,24 @@ public class WaveformVisualizer : StackPanel
         double rate = _targetLevel > _displayLevel ? 0.35 : 0.08;
         _displayLevel += (_targetLevel - _displayLevel) * rate;
 
+        // Every ~0.4s each bar picks a new random drift target and eases toward
+        // it — a bounded random walk on top of the sines breaks any residual pattern.
+        if (t >= _nextDriftPick)
+        {
+            _nextDriftPick = t + 0.4;
+            for (int i = 0; i < BarCount; i++)
+            {
+                _driftTarget[i] = (_rng.NextDouble() - 0.5) * 0.16;
+            }
+        }
+
         for (int i = 0; i < BarCount; i++)
         {
-            // Idle breathing: each bar sways ±~12% of range on its own slow sine.
-            double sway = 0.5 + 0.5 * Math.Sin(2 * Math.PI * t / SwayPeriodSeconds[i] + SwayPhase[i]);
-            double idle = 0.10 + 0.12 * sway;
+            _drift[i] += (_driftTarget[i] - _drift[i]) * 0.06;
+
+            double a = Math.Sin(2 * Math.PI * t / PeriodA[i] + PhaseA[i]);
+            double b = Math.Sin(2 * Math.PI * t / PeriodB[i] + PhaseB[i]);
+            double idle = 0.14 + 0.07 * a + 0.05 * b + _drift[i];
 
             double energy = Math.Clamp(idle + _displayLevel * LevelWeight[i], 0.0, 1.0);
             _bars[i].Height = BarMinHeight + (BarMaxHeight - BarMinHeight) * energy;

@@ -86,7 +86,47 @@ public partial class App : System.Windows.Application
         _meetingRecorder = new MeetingRecorder();
         _notesService = new MeetingNotesService(transcription, _httpClient, settingsProvider);
 
+        // Dev-only HUD preview: WinFlow.exe --preview-hud [seconds] presents the
+        // overlay without any recording, for visual verification.
+        // Dev-only: open straight on a page, e.g. --page Settings
+        _startupPage = ArgValue(e.Args, "--page");
+
+        var previewIdx = Array.IndexOf(e.Args, "--preview-hud");
+        if (previewIdx >= 0)
+        {
+            int seconds = previewIdx + 1 < e.Args.Length && int.TryParse(e.Args[previewIdx + 1], out var s) ? s : 8;
+            _ = PreviewHudAsync(seconds);
+            return;
+        }
+
         _ = InitializeAsync();
+    }
+
+    private async Task PreviewHudAsync(int seconds)
+    {
+        try
+        {
+            var overlay = new OverlayWindow(_appState!);
+            overlay.PreviewPhase(Core.Pipeline.PipelinePhase.Recording);
+            await Task.Delay(seconds * 1000);
+            overlay.PreviewPhase(Core.Pipeline.PipelinePhase.Idle);
+            await Task.Delay(400);
+            overlay.CloseForShutdown();
+        }
+        catch (Exception ex)
+        {
+            System.IO.File.WriteAllText(
+                System.IO.Path.Combine(AppContext.BaseDirectory, "hud-preview-error.log"), ex.ToString());
+        }
+        await ShutdownAsync();
+    }
+
+    private string? _startupPage;
+
+    private static string? ArgValue(string[] args, string name)
+    {
+        int i = Array.IndexOf(args, name);
+        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
 
     private async Task InitializeAsync()
@@ -98,6 +138,7 @@ public partial class App : System.Windows.Application
             try
             {
                 Views.SettingsPanel.ApplyTheme(_appState.Settings.Theme);
+                Views.WinFlowTheme.Initialize();
             }
             catch (Exception ex)
             {
@@ -112,6 +153,7 @@ public partial class App : System.Windows.Application
             _trayManager.ExitRequested += () => _ = ShutdownAsync();
 
             ShowMain();
+            if (_startupPage != null) _mainWindow?.ShowPage(_startupPage);
         }
         catch (Exception ex)
         {

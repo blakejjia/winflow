@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="WinFlow"
-        Width="1000" Height="700"
-        MinWidth="820" MinHeight="560"
+        Width="1040" Height="720"
+        MinWidth="860" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica">
@@ -72,127 +72,177 @@
                 </Grid.RowDefinitions>
 
                 <!-- ================= HOME ================= -->
-                <ScrollViewer x:Name="PageHome" Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="32,24,32,24">
-                    <Grid MaxWidth="860" HorizontalAlignment="Left">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="220"/>
-                        </Grid.ColumnDefinitions>
+                <ScrollViewer x:Name="PageHome" Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="900" HorizontalAlignment="Stretch" Margin="32,12,32,24">
+                        <ui:TextBlock x:Name="GreetingText" FontTypography="TitleLarge" Text="Welcome back."/>
+                        <TextBlock Style="{StaticResource PageSubtitleTextStyle}"
+                                   Text="Your voice-writing space. Everything here stays on this PC."/>
 
-                        <StackPanel Grid.Column="0" Margin="0,0,24,0">
-                            <ui:TextBlock x:Name="GreetingText" FontTypography="TitleLarge" Text="Welcome back."/>
-
-                            <!-- Hero: the one thing this app does -->
-                            <Border Background="#FF141414" CornerRadius="12" Padding="24,20" Margin="0,16,0,24">
-                                <StackPanel>
+                        <!-- Hero: the one thing this app does -->
+                        <Border Background="{DynamicResource HeroBackgroundBrush}"
+                                BorderBrush="{DynamicResource HeroBorderBrush}" BorderThickness="1"
+                                CornerRadius="12" Padding="24,22" Margin="0,0,0,28">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Width="52" Height="52" CornerRadius="26"
+                                        Background="{DynamicResource HeroIconBadgeBackgroundBrush}"
+                                        VerticalAlignment="Top">
+                                    <ui:SymbolIcon Symbol="MicSparkle24" FontSize="24"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="18,2,0,0">
                                     <TextBlock Text="Hold CapsLock, speak, release."
-                                               Foreground="#FFFFFFFF" FontSize="20" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource HeroTextBrush}"
+                                               FontSize="20" FontWeight="SemiBold"
                                                FontFamily="Segoe UI Variable Display, Segoe UI"/>
                                     <TextBlock Text="Your words appear where the cursor is — cleaned up, spelled right, in your voice."
-                                               Foreground="#B3FFFFFF" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                                        <Border Background="#26FFFFFF" CornerRadius="4" Padding="8,3">
-                                            <TextBlock Text="Double-tap = hands-free" Foreground="#E6FFFFFF" FontSize="11"/>
-                                        </Border>
-                                        <Border Background="#26FFFFFF" CornerRadius="4" Padding="8,3" Margin="8,0,0,0">
-                                            <TextBlock Text="Esc = discard" Foreground="#E6FFFFFF" FontSize="11"/>
-                                        </Border>
-                                        <Border Background="#26FFFFFF" CornerRadius="4" Padding="8,3" Margin="8,0,0,0">
-                                            <TextBlock Text="Shift+CapsLock = normal CapsLock" Foreground="#E6FFFFFF" FontSize="11"/>
-                                        </Border>
-                                    </StackPanel>
+                                               Foreground="{DynamicResource HeroSecondaryTextBrush}"
+                                               FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                    <WrapPanel Margin="0,16,0,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                                            <Border Style="{StaticResource KeycapBorderStyle}">
+                                                <TextBlock Text="CapsLock ×2" Style="{StaticResource KeycapTextStyle}"/>
+                                            </Border>
+                                            <TextBlock Text="hands-free" FontSize="12" VerticalAlignment="Center" Margin="7,0,0,0"
+                                                       Foreground="{DynamicResource HeroSecondaryTextBrush}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                                            <Border Style="{StaticResource KeycapBorderStyle}">
+                                                <TextBlock Text="Esc" Style="{StaticResource KeycapTextStyle}"/>
+                                            </Border>
+                                            <TextBlock Text="discard" FontSize="12" VerticalAlignment="Center" Margin="7,0,0,0"
+                                                       Foreground="{DynamicResource HeroSecondaryTextBrush}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <Border Style="{StaticResource KeycapBorderStyle}">
+                                                <TextBlock Text="Shift + CapsLock" Style="{StaticResource KeycapTextStyle}"/>
+                                            </Border>
+                                            <TextBlock Text="normal CapsLock" FontSize="12" VerticalAlignment="Center" Margin="7,0,0,0"
+                                                       Foreground="{DynamicResource HeroSecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </WrapPanel>
                                 </StackPanel>
-                            </Border>
+                            </Grid>
+                        </Border>
 
-                            <ui:TextBlock FontTypography="BodyStrong" Text="Today" Margin="0,0,0,10"/>
-                            <ItemsControl x:Name="TodayList">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <ui:Card Margin="0,0,0,8" Padding="14,10">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="64"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Timestamp, StringFormat={}{0:h:mm tt}, ConverterCulture=en-US}"
-                                                           FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                           VerticalAlignment="Top" Margin="0,2,0,0"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding CleanedText}"
-                                                           TextWrapping="Wrap" MaxHeight="88" TextTrimming="CharacterEllipsis"/>
-                                                <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6"
-                                                           VerticalAlignment="Top" ToolTip="Copy this text"
-                                                           Click="CopyHistoryItem_Click" Tag="{Binding}">
-                                                    <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
-                                                </ui:Button>
-                                            </Grid>
-                                        </ui:Card>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <StackPanel x:Name="TodayEmpty" Margin="0,8,0,0">
-                                <TextBlock Text="Nothing dictated today yet."
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                <TextBlock Text="Hold CapsLock anywhere and say something — it will show up here."
-                                           FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </StackPanel>
-
-                        <!-- Lifetime stats: your writing, remembered -->
-                        <StackPanel Grid.Column="1">
-                            <ui:Card Padding="18,16" Margin="0,52,0,0">
+                        <!-- Lifetime stats: three tiles, one glance -->
+                        <Grid Margin="0,0,0,28">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:Card Grid.Column="0" Padding="18,16">
                                 <StackPanel>
-                                    <TextBlock x:Name="StatWords" Text="0" FontSize="30" FontWeight="SemiBold"
-                                               FontFamily="Segoe UI Variable Display, Segoe UI"/>
-                                    <TextBlock Text="words dictated" FontSize="12"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,16"/>
-                                    <TextBlock x:Name="StatWpm" Text="—" FontSize="22" FontWeight="SemiBold"/>
-                                    <TextBlock Text="words per minute" FontSize="12"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,16"/>
-                                    <TextBlock x:Name="StatStreak" Text="0" FontSize="22" FontWeight="SemiBold"/>
-                                    <TextBlock Text="day streak" FontSize="12"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="TextEditStyle24" FontSize="16" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Words dictated" Style="{StaticResource StatLabelTextStyle}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="StatWords" Text="0" Style="{StaticResource StatValueTextStyle}" Margin="0,8,0,0"/>
                                 </StackPanel>
                             </ui:Card>
-                            <TextBlock Text="Counted on this PC only. Nothing is uploaded."
-                                       FontSize="11" TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="4,10,0,0"/>
-                        </StackPanel>
-                    </Grid>
+                            <ui:Card Grid.Column="2" Padding="18,16">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Gauge24" FontSize="16" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Words per minute" Style="{StaticResource StatLabelTextStyle}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="StatWpm" Text="—" Style="{StaticResource StatValueTextStyle}" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </ui:Card>
+                            <ui:Card Grid.Column="4" Padding="18,16">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Fire24" FontSize="16" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                        <TextBlock Text="Day streak" Style="{StaticResource StatLabelTextStyle}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="StatStreak" Text="0" Style="{StaticResource StatValueTextStyle}" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </ui:Card>
+                        </Grid>
+
+                        <TextBlock Text="Today" Style="{StaticResource SectionHeaderTextStyle}"/>
+                        <ItemsControl x:Name="TodayList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ui:Card Margin="0,0,0,8" Padding="16,12">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="72"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Timestamp, StringFormat={}{0:h:mm tt}, ConverterCulture=en-US}"
+                                                       FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       VerticalAlignment="Top" Margin="0,2,0,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding CleanedText}"
+                                                       TextWrapping="Wrap" MaxHeight="88" TextTrimming="CharacterEllipsis"
+                                                       Margin="0,0,8,0"/>
+                                            <ui:Button Grid.Column="2" Style="{StaticResource QuietIconButtonStyle}"
+                                                       ToolTip="Copy this text"
+                                                       Click="CopyHistoryItem_Click" Tag="{Binding}">
+                                                <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
+                                            </ui:Button>
+                                        </Grid>
+                                    </ui:Card>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Border x:Name="TodayEmpty" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                CornerRadius="8" Padding="24,28">
+                            <StackPanel HorizontalAlignment="Center">
+                                <ui:SymbolIcon Symbol="Mic24" Style="{StaticResource EmptyStateIconStyle}"/>
+                                <TextBlock Text="Nothing dictated today yet." Style="{StaticResource EmptyStateTitleStyle}"/>
+                                <TextBlock Text="Hold CapsLock anywhere and say something — it will show up here."
+                                           Style="{StaticResource EmptyStateBodyStyle}"/>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="Counted on this PC only. Nothing is uploaded."
+                                   Style="{StaticResource CaptionTextStyle}" Margin="2,16,0,0"/>
+                    </StackPanel>
                 </ScrollViewer>
 
                 <!-- ================= HISTORY ================= -->
-                <Grid x:Name="PageHistory" Grid.Row="0" Visibility="Collapsed" Margin="32,24,32,24">
+                <Grid x:Name="PageHistory" Grid.Row="0" Visibility="Collapsed" Margin="32,12,32,24">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <ui:TextBlock FontTypography="Title" Text="History"/>
-                    <ui:TextBlock Grid.Row="1" FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                  Text="Everything you dictated recently, kept only on this PC. Click copy to use any of it again."
-                                  TextWrapping="Wrap" Margin="0,4,0,16"/>
+                    <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitleTextStyle}"
+                               Text="Everything you dictated recently, kept only on this PC. Click copy to use any of it again."/>
                     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
+                        <Grid MaxWidth="900" HorizontalAlignment="Stretch">
                             <ItemsControl x:Name="HistoryList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <ui:Card Margin="0,0,0,8" Padding="14,10">
+                                        <ui:Card Margin="0,0,0,8" Padding="16,12">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="96"/>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Top" Margin="0,2,0,0">
                                                     <TextBlock Text="{Binding Timestamp, StringFormat={}{0:MMM d}, ConverterCulture=en-US}"
-                                                               FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                               FontSize="12" FontWeight="Medium"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                                     <TextBlock Text="{Binding Timestamp, StringFormat={}{0:h:mm tt}, ConverterCulture=en-US}"
-                                                               FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                                               FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,1,0,0"/>
                                                 </StackPanel>
-                                                <TextBlock Grid.Column="1" Text="{Binding CleanedText}" TextWrapping="Wrap"/>
-                                                <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6"
-                                                           VerticalAlignment="Top" ToolTip="Copy this text"
+                                                <TextBlock Grid.Column="1" Text="{Binding CleanedText}" TextWrapping="Wrap" Margin="0,0,8,0"/>
+                                                <ui:Button Grid.Column="2" Style="{StaticResource QuietIconButtonStyle}"
+                                                           ToolTip="Copy this text"
                                                            Click="CopyHistoryItem_Click" Tag="{Binding}">
                                                     <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
                                                 </ui:Button>
@@ -201,57 +251,75 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <StackPanel x:Name="HistoryEmpty" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,60,0,0">
-                                <ui:SymbolIcon Symbol="Mic24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Nothing here yet." FontWeight="Medium" HorizontalAlignment="Center" Margin="0,12,0,4"/>
+                            <StackPanel x:Name="HistoryEmpty" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,80,0,0">
+                                <ui:SymbolIcon Symbol="Mic24" Style="{StaticResource EmptyStateIconStyle}"/>
+                                <TextBlock Text="Nothing here yet." Style="{StaticResource EmptyStateTitleStyle}"/>
                                 <TextBlock Text="Hold CapsLock and say something — it will show up here."
-                                           FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center"/>
+                                           Style="{StaticResource EmptyStateBodyStyle}"/>
                             </StackPanel>
-                        </StackPanel>
+                        </Grid>
                     </ScrollViewer>
                 </Grid>
 
                 <!-- ================= SNIPPETS ================= -->
-                <Grid x:Name="PageSnippets" Grid.Row="0" Visibility="Collapsed" Margin="32,24,32,24" MaxWidth="700" HorizontalAlignment="Left">
+                <Grid x:Name="PageSnippets" Grid.Row="0" Visibility="Collapsed" Margin="32,12,32,24">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <DockPanel Margin="0,0,0,4">
+                    <Grid MaxWidth="900" HorizontalAlignment="Stretch">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
                         <ui:TextBlock FontTypography="Title" Text="Snippets" VerticalAlignment="Center"/>
-                        <ui:Button Content="Add snippet" Click="AddMacro_Click" Appearance="Primary"
-                                   HorizontalAlignment="Right" Padding="14,4">
+                        <ui:Button Grid.Column="1" Content="Add snippet" Click="AddMacro_Click" Appearance="Primary"
+                                   VerticalAlignment="Center" Padding="14,5">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="Add24"/>
                             </ui:Button.Icon>
                         </ui:Button>
-                    </DockPanel>
-                    <ui:TextBlock Grid.Row="1" FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                  Text="The stuff you shouldn't have to re-type. Say the phrase, get the text — instantly, no AI involved."
-                                  TextWrapping="Wrap" Margin="0,0,0,16"/>
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
+                    </Grid>
+                    <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitleTextStyle}"
+                               Text="The stuff you shouldn't have to re-type. Say the phrase, get the text — instantly, no AI involved."/>
+                    <!-- Column headers give the phrase → text rows a frame -->
+                    <Grid Grid.Row="2" MaxWidth="900" HorizontalAlignment="Stretch" Margin="16,0,16,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="34"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="38"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="SAY" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                        <TextBlock Grid.Column="2" Text="GET" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                    </Grid>
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="900" HorizontalAlignment="Stretch">
                             <ItemsControl x:Name="MacrosList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <ui:Card Margin="0,0,0,8" Padding="12,10">
+                                        <ui:Card Margin="0,0,0,8" Padding="16,12">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="210"/>
-                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="220"/>
+                                                    <ColumnDefinition Width="34"/>
                                                     <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="36"/>
+                                                    <ColumnDefinition Width="38"/>
                                                 </Grid.ColumnDefinitions>
                                                 <ui:TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
                                                             PlaceholderText="my email"/>
-                                                <TextBlock Grid.Column="1" Text="→" VerticalAlignment="Center" Margin="10,0"
-                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                                <ui:SymbolIcon Grid.Column="1" Symbol="ArrowRight24" FontSize="14"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
                                                 <ui:TextBox Grid.Column="2"
                                                             Text="{Binding Payload, UpdateSourceTrigger=PropertyChanged}"
                                                             PlaceholderText="you@example.com"/>
-                                                <ui:Button Grid.Column="3" Appearance="Transparent" Padding="6"
-                                                            Margin="4,0,0,0" VerticalAlignment="Center"
+                                                <ui:Button Grid.Column="3" Style="{StaticResource QuietIconButtonStyle}"
+                                                            Margin="6,0,0,0" VerticalAlignment="Center"
                                                             Click="DeleteMacro_Click" Tag="{Binding}"
                                                             ToolTip="Remove this snippet">
                                                     <ui:SymbolIcon Symbol="Delete24" FontSize="15"/>
@@ -261,36 +329,45 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="Example: say “my email” and WinFlow types you@example.com."
-                                       FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="2,4,0,0"/>
+                            <StackPanel x:Name="SnippetsEmpty" Margin="0,24,0,0" HorizontalAlignment="Center">
+                                <ui:SymbolIcon Symbol="Flash24" Style="{StaticResource EmptyStateIconStyle}"/>
+                                <TextBlock Text="No snippets yet." Style="{StaticResource EmptyStateTitleStyle}"/>
+                                <TextBlock Text="Add one above — say “my email” and WinFlow types you@example.com."
+                                           Style="{StaticResource EmptyStateBodyStyle}"/>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
 
                 <!-- ================= WORDS ================= -->
-                <Grid x:Name="PageWords" Grid.Row="0" Visibility="Collapsed" Margin="32,24,32,24" MaxWidth="700" HorizontalAlignment="Left">
+                <Grid x:Name="PageWords" Grid.Row="0" Visibility="Collapsed" Margin="32,12,32,24">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <ui:TextBlock FontTypography="Title" Text="Words"/>
-                    <ui:TextBlock Grid.Row="1" FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                  Text="WinFlow spells the way you do. Names, products, jargon — one per line. Cleanup treats these as the correct spelling."
-                                  TextWrapping="Wrap" Margin="0,4,0,16"/>
-                    <ui:TextBox x:Name="VocabularyBox" Grid.Row="2" AcceptsReturn="True" TextWrapping="Wrap"
+                    <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitleTextStyle}"
+                               Text="WinFlow spells the way you do. Names, products, jargon — one per line. Cleanup treats these as the correct spelling."/>
+                    <ui:TextBox x:Name="VocabularyBox" Grid.Row="2" MaxWidth="900" HorizontalAlignment="Stretch"
+                                AcceptsReturn="True" TextWrapping="Wrap"
                                 VerticalAlignment="Stretch" VerticalContentAlignment="Top"
                                 PlaceholderText="Kubernetes&#10;Aysha&#10;WinFlow"/>
+                    <TextBlock Grid.Row="3" MaxWidth="900" HorizontalAlignment="Stretch"
+                               Text="One word or phrase per line. Saved words apply to your next dictation."
+                               Style="{StaticResource CaptionTextStyle}" Margin="2,8,0,0"/>
                 </Grid>
 
                 <!-- ================= NOTES ================= -->
-                <Grid x:Name="PageNotes" Grid.Row="0" Visibility="Collapsed" Margin="32,24,32,24">
+                <Grid x:Name="PageNotes" Grid.Row="0" Visibility="Collapsed" Margin="32,12,32,24">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="24"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <Grid Grid.Column="0" Margin="0,0,20,0">
+                    <Grid Grid.Column="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -298,11 +375,10 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <ui:TextBlock FontTypography="Title" Text="Notes"/>
-                        <ui:TextBlock Grid.Row="1" FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                      Text="Record a meeting, get the minutes. Both sides of the call are captured — only while you record."
-                                      TextWrapping="Wrap" Margin="0,4,0,14"/>
+                        <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitleTextStyle}" Margin="0,4,0,16"
+                                   Text="Record a meeting, get the minutes. Both sides of the call are captured — only while you record."/>
 
-                        <ui:CardControl x:Name="RecordCard" Grid.Row="2" Margin="0,0,0,14">
+                        <ui:CardControl x:Name="RecordCard" Grid.Row="2" Margin="0,0,0,16">
                             <ui:CardControl.Icon>
                                 <ui:SymbolIcon Symbol="Record24"/>
                             </ui:CardControl.Icon>
@@ -313,7 +389,7 @@
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </ui:CardControl.Header>
-                            <ui:Button x:Name="RecordButton" Content="Start" Click="RecordToggle_Click" Appearance="Primary" Padding="14,4"/>
+                            <ui:Button x:Name="RecordButton" Content="Start" Click="RecordToggle_Click" Appearance="Primary" Padding="14,5"/>
                         </ui:CardControl>
 
                         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
@@ -325,7 +401,7 @@
                                                 <StackPanel>
                                                     <TextBlock Text="{Binding Title}" FontWeight="Medium"
                                                                TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                    <TextBlock FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0">
                                                         <Run Text="{Binding CreatedAt, StringFormat={}{0:MMM d, h:mm tt}, ConverterCulture=en-US, Mode=OneWay}"/>
                                                         <Run Text="·"/>
                                                         <Run Text="{Binding Duration, StringFormat={}{0:mm\\:ss}, Mode=OneWay}"/>
@@ -335,77 +411,120 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <TextBlock x:Name="NotesEmpty" Text="No notes yet. Start a recording during your next call."
-                                           FontSize="12" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="2,8,0,0"/>
+                                <StackPanel x:Name="NotesEmpty" Margin="0,32,0,0" HorizontalAlignment="Center">
+                                    <ui:SymbolIcon Symbol="Notepad24" Style="{StaticResource EmptyStateIconStyle}"/>
+                                    <TextBlock Text="No notes yet." Style="{StaticResource EmptyStateTitleStyle}"/>
+                                    <TextBlock Text="Start a recording during your next call — minutes and transcript land here."
+                                               Style="{StaticResource EmptyStateBodyStyle}"/>
+                                </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
 
                     <!-- Reading pane -->
-                    <Grid Grid.Column="1">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <DockPanel Margin="0,0,0,12">
-                            <ui:TextBlock x:Name="NoteTitleText" FontTypography="Subtitle" Text="" VerticalAlignment="Center"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <ui:Button x:Name="CopyNoteButton" Content="Copy" Click="CopyNote_Click" Appearance="Transparent" Padding="10,2" Visibility="Collapsed">
-                                    <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="Copy24"/>
-                                    </ui:Button.Icon>
-                                </ui:Button>
-                                <ui:Button x:Name="DeleteNoteButton" Content="Delete" Click="DeleteNote_Click" Appearance="Transparent" Padding="10,2" Visibility="Collapsed">
-                                    <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="Delete24"/>
-                                    </ui:Button.Icon>
-                                </ui:Button>
-                            </StackPanel>
-                        </DockPanel>
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <StackPanel>
-                                <ui:Card x:Name="NoteSummaryCard" Padding="18,14" Visibility="Collapsed">
-                                    <TextBlock x:Name="NoteSummaryText" TextWrapping="Wrap"/>
-                                </ui:Card>
-                                <TextBlock x:Name="NoteTranscriptLabel" Text="Transcript" FontWeight="SemiBold" Margin="2,16,0,8" Visibility="Collapsed"/>
-                                <TextBlock x:Name="NoteTranscriptText" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                <StackPanel x:Name="NotePlaceholder" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,80,0,0">
-                                    <ui:SymbolIcon Symbol="Notepad24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="Pick a note to read it, or start recording."
-                                               FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,12,0,0"/>
+                    <Border Grid.Column="2" Background="Transparent"
+                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="1,0,0,0"
+                            CornerRadius="0">
+                        <Grid Margin="20,16,20,16">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:TextBlock x:Name="NoteTitleText" FontTypography="Subtitle" Text="" VerticalAlignment="Center"
+                                              TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <ui:Button x:Name="CopyNoteButton" Content="Copy" Click="CopyNote_Click" Appearance="Transparent" Padding="10,3" Visibility="Collapsed">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="Copy24"/>
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button x:Name="DeleteNoteButton" Content="Delete" Click="DeleteNote_Click" Appearance="Transparent" Padding="10,3" Margin="4,0,0,0" Visibility="Collapsed">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="Delete24"/>
+                                        </ui:Button.Icon>
+                                    </ui:Button>
                                 </StackPanel>
+                            </Grid>
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <Border x:Name="NoteSummaryCard" Visibility="Collapsed"
+                                            Background="{DynamicResource SummaryCardBackgroundBrush}"
+                                            BorderBrush="{DynamicResource SummaryCardBorderBrush}" BorderThickness="1"
+                                            CornerRadius="8" Padding="16,14">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                <ui:SymbolIcon Symbol="Sparkle24" FontSize="14" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                                <TextBlock Text="Minutes" FontSize="12" FontWeight="SemiBold" Margin="7,0,0,0" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="NoteSummaryText" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock x:Name="NoteTranscriptLabel" Text="Transcript" Style="{StaticResource SectionHeaderTextStyle}"
+                                               Margin="2,20,0,8" Visibility="Collapsed"/>
+                                    <TextBlock x:Name="NoteTranscriptText" TextWrapping="Wrap" LineHeight="22"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                            <StackPanel x:Name="NotePlaceholder" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <ui:SymbolIcon Symbol="Notepad24" Style="{StaticResource EmptyStateIconStyle}"/>
+                                <TextBlock Text="Pick a note to read it." Style="{StaticResource EmptyStateTitleStyle}"/>
+                                <TextBlock Text="Or start a recording — the minutes will open here when they're ready."
+                                           Style="{StaticResource EmptyStateBodyStyle}"/>
                             </StackPanel>
-                        </ScrollViewer>
-                    </Grid>
+                        </Grid>
+                    </Border>
                 </Grid>
 
                 <!-- ================= SETTINGS ================= -->
-                <Grid x:Name="PageSettings" Grid.Row="0" Visibility="Collapsed" Margin="32,24,32,24">
+                <Grid x:Name="PageSettings" Grid.Row="0" Visibility="Collapsed" Margin="32,12,32,24">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Breadcrumb: Settings > General etc. -->
-                    <ui:BreadcrumbBar x:Name="SettingsBreadcrumb" Grid.Row="0" Margin="0,0,0,16"
-                                      ItemClicked="SettingsBreadcrumb_ItemClicked"/>
+                    <!-- Title IS the breadcrumb (Windows Settings style):
+                         home shows "Settings"; a category shows "Settings › General"
+                         with the parent as a quiet clickable link and the current
+                         page as the page title. -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
+                        <ui:TextBlock x:Name="SettingsTitleHome" FontTypography="Title" Text="Settings"
+                                      VerticalAlignment="Center"/>
+                        <ui:Button x:Name="SettingsTitleParentLink" Visibility="Collapsed"
+                                   Click="SettingsTitleParent_Click" VerticalAlignment="Center"
+                                   Appearance="Transparent" Background="Transparent" BorderThickness="0"
+                                   Padding="2,0" Cursor="Hand">
+                            <ui:TextBlock FontTypography="Subtitle" Text="Settings"
+                                          Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        </ui:Button>
+                        <ui:SymbolIcon x:Name="SettingsTitleChevron" Symbol="ChevronRight24" FontSize="14"
+                                       Visibility="Collapsed" VerticalAlignment="Center" Margin="10,4,10,0"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <ui:TextBlock x:Name="SettingsTitleCurrent" FontTypography="Title" Text=""
+                                      Visibility="Collapsed" VerticalAlignment="Center"/>
+                    </StackPanel>
 
                     <!-- Settings home: Windows-Settings-style category list -->
-                    <ScrollViewer x:Name="SettingsHome" Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <StackPanel MaxWidth="700" HorizontalAlignment="Left">
+                    <ScrollViewer x:Name="SettingsHome" Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,4,0,4">
+                        <StackPanel HorizontalAlignment="Stretch">
+                            <TextBlock Style="{StaticResource PageSubtitleTextStyle}" Margin="0,0,0,20"
+                                       Text="Tune WinFlow to the way you work. Saved changes apply immediately — no restart needed."/>
                             <ui:CardAction Margin="0,0,0,8" Click="SettingsCategory_Click" Tag="General">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Symbol="Options24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
+                                    <ui:SymbolIcon Symbol="Options24" FontSize="20" Margin="4,0,16,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="General" FontWeight="Medium"/>
-                                        <TextBlock Text="Shortcut, microphone, language, theme" FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Text="General" Style="{StaticResource SettingTitleTextStyle}"/>
+                                        <TextBlock Text="Shortcut, microphone, language, theme" Style="{StaticResource SettingDescriptionTextStyle}"/>
                                     </StackPanel>
                                 </Grid>
                             </ui:CardAction>
@@ -415,11 +534,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
+                                    <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="4,0,16,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="System" FontWeight="Medium"/>
-                                        <TextBlock Text="Fullscreen games, Enter after pasting" FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Text="System" Style="{StaticResource SettingTitleTextStyle}"/>
+                                        <TextBlock Text="Fullscreen games, Enter after pasting" Style="{StaticResource SettingDescriptionTextStyle}"/>
                                     </StackPanel>
                                 </Grid>
                             </ui:CardAction>
@@ -429,11 +547,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Symbol="BrainCircuit24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
+                                    <ui:SymbolIcon Symbol="BrainCircuit24" FontSize="20" Margin="4,0,16,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="AI &amp; models" FontWeight="Medium"/>
-                                        <TextBlock Text="API key, endpoint, transcription and cleanup models" FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Text="AI &amp; models" Style="{StaticResource SettingTitleTextStyle}"/>
+                                        <TextBlock Text="API key, endpoint, transcription and cleanup models" Style="{StaticResource SettingDescriptionTextStyle}"/>
                                     </StackPanel>
                                 </Grid>
                             </ui:CardAction>
@@ -443,11 +560,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
+                                    <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="20" Margin="4,0,16,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Privacy" FontWeight="Medium"/>
-                                        <TextBlock Text="Screen context, clipboard protection, what stays on this PC" FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Text="Privacy" Style="{StaticResource SettingTitleTextStyle}"/>
+                                        <TextBlock Text="Screen context, clipboard protection, what stays on this PC" Style="{StaticResource SettingDescriptionTextStyle}"/>
                                     </StackPanel>
                                 </Grid>
                             </ui:CardAction>
@@ -457,11 +573,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Symbol="TextGrammarWand24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
+                                    <ui:SymbolIcon Symbol="TextGrammarWand24" FontSize="20" Margin="4,0,16,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Prompts" FontWeight="Medium"/>
-                                        <TextBlock Text="The instructions behind cleanup and context" FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <TextBlock Text="Prompts" Style="{StaticResource SettingTitleTextStyle}"/>
+                                        <TextBlock Text="The instructions behind cleanup and context" Style="{StaticResource SettingDescriptionTextStyle}"/>
                                     </StackPanel>
                                 </Grid>
                             </ui:CardAction>
@@ -474,7 +589,7 @@
 
                 <!-- ================= FOOTER ================= -->
                 <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                        Padding="32,10" Background="{DynamicResource LayerFillColorDefaultBrush}">
+                        Padding="32,10" Background="Transparent">
                     <Grid>
                         <TextBlock Text="WinFlow · your voice stays yours" VerticalAlignment="Center"
                                    FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
@@ -491,7 +606,12 @@
                     </Grid>
                 </Border>
 
-                <ui:SnackbarPresenter x:Name="SnackbarPresenter" Grid.Row="0" VerticalAlignment="Bottom" Margin="0,0,0,16"/>
+                <!-- WinUI-style status: a compact InfoBar floating bottom-right,
+                     not a full-width colored banner. -->
+                <ui:InfoBar x:Name="StatusInfoBar" Grid.Row="0"
+                            VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                            Margin="0,0,24,16" MaxWidth="420"
+                            IsOpen="False" IsClosable="True"/>
             </Grid>
             </ui:NavigationView.ContentOverlay>
         </ui:NavigationView>
