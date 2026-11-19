@@ -12,19 +12,19 @@
         ShowActivated="False"
         Focusable="False">
 
-    <!-- Fixed-size window whose background is NULL (never painted). Only the pill
-         renders; the layered surface is per-pixel alpha, so everything outside the
-         pill is truly absent. Window Opacity drives the fade in/out. -->
-    <Grid Background="{x:Null}">
+    <!-- The canvas is rendered off-window into a layered surface; the Window visual
+         itself never paints. Pill is centered via negative margins (Canvas has no
+         alignment), sized/animated from code. -->
+    <Canvas x:Name="RootCanvas" Width="260" Height="80" Background="{x:Null}">
         <Border x:Name="PillBorder"
                 Background="#FF000000"
                 CornerRadius="19"
                 Width="96" Height="38"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center">
+                Canvas.Left="82" Canvas.Top="21">
             <Grid>
                 <!-- Listening: breathing white bars -->
-                <controls:WaveformVisualizer x:Name="Waveform" Visibility="Visible"/>
+                <controls:WaveformVisualizer x:Name="Waveform" Visibility="Visible"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
                 <!-- Transcribing: small white spinner -->
                 <Grid x:Name="TranscribingPanel" Visibility="Collapsed" Width="18" Height="18"
@@ -41,7 +41,7 @@
                     </Path>
                 </Grid>
 
-                <!-- Safety advisories only (no success state) -->
+                <!-- Safety advisories only -->
                 <StackPanel x:Name="AdvisoryPanel" Visibility="Collapsed"
                             VerticalAlignment="Center" Margin="12,0">
                     <TextBlock x:Name="ElevatedBadge"
@@ -60,5 +60,5 @@
                 </StackPanel>
             </Grid>
         </Border>
-    </Grid>
+    </Canvas>
 </Window>

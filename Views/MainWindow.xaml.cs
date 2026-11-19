@@ -27,7 +27,8 @@ public partial class MainWindow : FluentWindow
 
     private readonly ObservableCollection<VoiceMacro> _macroRows = new();
     private MeetingNote? _selectedNote;
-    private SettingsWindow? _settingsWindow;
+    private SettingsPanel? _settingsPanel;
+    private string? _settingsCategory;
     private bool _allowClose;
     private bool _notesBusy;
     private readonly DispatcherTimer _recordClock = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -56,7 +57,6 @@ public partial class MainWindow : FluentWindow
     public void CloseForShutdown()
     {
         _allowClose = true;
-        _settingsWindow?.CloseForShutdown();
         Close();
     }
 
@@ -84,10 +84,10 @@ public partial class MainWindow : FluentWindow
 
     private FrameworkElement[] Pages => new FrameworkElement[]
     {
-        PageHome, PageHistory, PageSnippets, PageWords, PageNotes
+        PageHome, PageHistory, PageSnippets, PageWords, PageNotes, PageSettings
     };
 
-    private NavigationViewItem[] NavItems => new[] { NavHome, NavHistory, NavSnippets, NavWords, NavNotes };
+    private NavigationViewItem[] NavItems => new[] { NavHome, NavHistory, NavSnippets, NavWords, NavNotes, NavSettings };
 
     private void NavItem_Click(object sender, RoutedEventArgs e)
     {
@@ -117,6 +117,7 @@ public partial class MainWindow : FluentWindow
             case "Home": RefreshHome(); break;
             case "History": RefreshHistory(); break;
             case "Notes": RefreshNotesList(); break;
+            case "Settings": ShowSettingsHome(); break;
         }
     }
 
@@ -324,17 +325,57 @@ public partial class MainWindow : FluentWindow
         RefreshNotesList();
     }
 
-    // ---------- settings dialog ----------
+    // ---------- settings (in-navigation, breadcrumb drill-in) ----------
 
-    private void OpenSettings_Click(object sender, RoutedEventArgs e)
+    private static readonly (string Tag, string Label)[] SettingsCategories =
     {
-        if (_settingsWindow == null)
+        ("General", "General"),
+        ("System", "System"),
+        ("Ai", "AI & models"),
+        ("Privacy", "Privacy"),
+        ("Prompts", "Prompts")
+    };
+
+    private void ShowSettingsHome()
+    {
+        _settingsCategory = null;
+        SettingsBreadcrumb.ItemsSource = new[] { "Settings" };
+        SettingsHome.Visibility = Visibility.Visible;
+        SettingsDetailHost.Visibility = Visibility.Collapsed;
+    }
+
+    private void SettingsCategory_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is string tag)
         {
-            _settingsWindow = new SettingsWindow(_appState, _httpClient) { Owner = this };
-            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            OpenSettingsCategory(tag);
         }
-        _settingsWindow.Show();
-        _settingsWindow.Activate();
+    }
+
+    private void OpenSettingsCategory(string tag)
+    {
+        _settingsCategory = tag;
+        var label = SettingsCategories.FirstOrDefault(c => c.Tag == tag).Label ?? tag;
+        SettingsBreadcrumb.ItemsSource = new[] { "Settings", label };
+
+        if (_settingsPanel == null)
+        {
+            _settingsPanel = new SettingsPanel(_appState, _httpClient);
+            SettingsDetailHost.Children.Add(_settingsPanel);
+        }
+        _settingsPanel.ShowPane(tag);
+
+        SettingsHome.Visibility = Visibility.Collapsed;
+        SettingsDetailHost.Visibility = Visibility.Visible;
+    }
+
+    private void SettingsBreadcrumb_ItemClicked(object sender, RoutedEventArgs e)
+    {
+        if (e is not Wpf.Ui.Controls.BreadcrumbBarItemClickedEventArgs args) return;
+        if (args.Index == 0)
+        {
+            ShowSettingsHome();
+        }
     }
 
     internal void ShowSnackbar(string title, string message, ControlAppearance appearance, SymbolRegular icon)

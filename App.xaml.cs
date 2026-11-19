@@ -97,7 +97,7 @@ public partial class App : System.Windows.Application
 
             try
             {
-                Views.SettingsWindow.ApplyTheme(_appState.Settings.Theme);
+                Views.SettingsPanel.ApplyTheme(_appState.Settings.Theme);
             }
             catch (Exception ex)
             {
@@ -165,7 +165,7 @@ public partial class App : System.Windows.Application
             }
 
             _mainWindow?.CloseForShutdown();
-            _overlayWindow?.Close();
+            _overlayWindow?.CloseForShutdown();
             _trayManager?.Dispose();
             _meetingRecorder?.Dispose();
             _appState?.Dispose();

@@ -6,10 +6,11 @@ using WinFlow.Core.Pipeline;
 namespace WinFlow.Views;
 
 /// <summary>
-/// Two-state HUD rendered on a true per-pixel-alpha layered window (UpdateLayeredWindow),
-/// bypassing WPF's AllowsTransparency redirection surface which can show a gray rectangle
-/// on some GPU/driver compositions. Only the black pill exists on screen; the rest of the
-/// window is absent, not "transparent gray". Fades in/out via layered alpha.
+/// Two-state HUD on a true per-pixel-alpha layered window. The window content is a
+/// plain Canvas (not the Window visual): RenderTargetBitmap renders the canvas, and
+/// UpdateLayeredWindow presents it. Rendering the Window visual itself produced an
+/// empty surface (its chrome/background never enters the RTB), which is why the HUD
+/// stayed invisible. Only the black pill exists on screen; fades run on layered alpha.
 /// </summary>
 public partial class OverlayWindow : Window
 {
@@ -40,7 +41,7 @@ public partial class OverlayWindow : Window
     private TimeSpan _fadeTime = FadeInTime;
     private Action? _fadeCompleted;
 
-    private bool _surfaceReady;
+    private int _pushCount;
 
     public OverlayWindow(AppState appState)
     {
@@ -51,8 +52,6 @@ public partial class OverlayWindow : Window
         _appState.AudioLevelChanged += OnAudioLevelChanged;
         _appState.ErrorOccurred += OnErrorOccurred;
         _appState.NoticeRaised += OnNoticeRaised;
-
-        Loaded += (_, _) => CenterAtTop();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -62,21 +61,14 @@ public partial class OverlayWindow : Window
         _hwnd = new WindowInteropHelper(this).Handle;
         int exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
 
-        // WS_EX_LAYERED with UpdateLayeredWindow gives per-pixel alpha; NOACTIVATE keeps
-        // focus untouched, TRANSPARENT makes clicks pass through, TOOLWINDOW hides Alt-Tab.
+        // WS_EX_LAYERED + UpdateLayeredWindow = per-pixel alpha; NOACTIVATE keeps focus
+        // untouched, TRANSPARENT passes clicks through, TOOLWINDOW hides from Alt-Tab.
         SetWindowLong(_hwnd, GWL_EXSTYLE,
             exStyle | WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW);
 
-        // Establish the layered surface as fully transparent; UpdateLayeredWindow
-        // takes over from the first pushed frame.
-        SetLayeredWindowAttributes(_hwnd, 0, 0, LWA_ALPHA);
-
-        // The HWND must exist and be visible for UpdateLayeredWindow to present.
-        // Show it once here, then immediately clear the surface to zero alpha so
-        // WPF's own first paint (a black rectangle) never reaches the screen.
         CenterAtTop();
-        Show();
-        PushPixels(); // _alpha == 0 -> fully transparent layered content
+        Show();               // HWND must be visible for UpdateLayeredWindow to present
+        PushPixels();         // alpha 0: clears any first paint, screen stays clean
     }
 
     public void CenterAtTop()
@@ -85,6 +77,8 @@ public partial class OverlayWindow : Window
         Left = (screenWidth - Width) / 2;
         Top = 24;
     }
+
+    public void CloseForShutdown() => Close();
 
     // ---------- frame loop: morph + fade + pixel push ----------
 
@@ -108,7 +102,6 @@ public partial class OverlayWindow : Window
     {
         bool animating = false;
 
-        // Morph
         if (_morphClock != null)
         {
             double t = Math.Clamp(_morphClock.Elapsed / MorphTime, 0, 1);
@@ -116,6 +109,9 @@ public partial class OverlayWindow : Window
             PillBorder.Width = Lerp(_morphFrom.W, _morphTo.W, k);
             PillBorder.Height = Lerp(_morphFrom.H, _morphTo.H, k);
             PillBorder.CornerRadius = new CornerRadius(Lerp(_morphFrom.R, _morphTo.R, k));
+            // Keep the pill centered inside the fixed canvas as it morphs.
+            System.Windows.Controls.Canvas.SetLeft(PillBorder, (RootCanvas.Width - PillBorder.Width) / 2);
+            System.Windows.Controls.Canvas.SetTop(PillBorder, (RootCanvas.Height - PillBorder.Height) / 2);
             animating = true;
             if (t >= 1)
             {
@@ -126,7 +122,6 @@ public partial class OverlayWindow : Window
             }
         }
 
-        // Fade
         if (_fadeClock != null)
         {
             double t = Math.Clamp(_fadeClock.Elapsed / _fadeTime, 0, 1);
@@ -141,11 +136,9 @@ public partial class OverlayWindow : Window
             }
         }
 
-        // Drive the spinner and waveform from this same loop: with UpdateLayeredWindow
-        // nothing reaches the screen unless we push pixels, so all motion lives here.
         if (TranscribingPanel.Visibility == Visibility.Visible)
         {
-            _spinnerAngle = (_spinnerAngle + 6.4) % 360; // ~360°/900ms at 16ms frames
+            _spinnerAngle = (_spinnerAngle + 6.4) % 360;
             SpinnerRotation.Angle = _spinnerAngle;
         }
         if (Waveform.Visibility == Visibility.Visible)
@@ -168,7 +161,10 @@ public partial class OverlayWindow : Window
     private static double EaseInOut(double t) =>
         t < 0.5 ? 4 * t * t * t : 1 - Math.Pow(-2 * t + 2, 3) / 2;
 
-    /// <summary>Renders the WPF visual tree into a DIB and hands it to UpdateLayeredWindow.</summary>
+    /// <summary>
+    /// Renders the content canvas (NOT the Window visual) into a DIB and presents it
+    /// via UpdateLayeredWindow. The canvas is laid out manually at the window size.
+    /// </summary>
     private void PushPixels()
     {
         if (_hwnd == IntPtr.Zero) return;
@@ -177,18 +173,15 @@ public partial class OverlayWindow : Window
         int h = (int)Height;
         if (w <= 0 || h <= 0) return;
 
-        // Let WPF lay out and animate the tree even though the window is layered.
-        if (!_surfaceReady)
-        {
-            Measure(new System.Windows.Size(w, h));
-            Arrange(new Rect(0, 0, w, h));
-            _surfaceReady = true;
-        }
-        UpdateLayout();
+        // Manual layout of the off-window canvas.
+        var size = new System.Windows.Size(w, h);
+        RootCanvas.Measure(size);
+        RootCanvas.Arrange(new Rect(size));
+        RootCanvas.UpdateLayout();
 
         var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
             w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
-        rtb.Render(this);
+        rtb.Render(RootCanvas);
 
         var bmi = new BITMAPINFO
         {
@@ -216,7 +209,7 @@ public partial class OverlayWindow : Window
             rtb.CopyPixels(new Int32Rect(0, 0, w, h), bits, w * h * 4, w * 4);
 
             var topPos = new POINT { X = (int)Left, Y = (int)Top };
-            var size = new SIZE { cx = w, cy = h };
+            var sizeNative = new SIZE { cx = w, cy = h };
             var srcLoc = new POINT { X = 0, Y = 0 };
             var blend = new BLENDFUNCTION
             {
@@ -226,7 +219,12 @@ public partial class OverlayWindow : Window
                 AlphaFormat = AC_SRC_ALPHA
             };
 
-            UpdateLayeredWindow(_hwnd, screenDc, ref topPos, ref size, memDc, ref srcLoc, 0, ref blend, ULW_ALPHA);
+            bool ok = UpdateLayeredWindow(_hwnd, screenDc, ref topPos, ref sizeNative, memDc, ref srcLoc, 0, ref blend, ULW_ALPHA);
+            if (!ok && _pushCount < 3)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WinFlow HUD] UpdateLayeredWindow failed: {Marshal.GetLastWin32Error()}");
+            }
+            _pushCount++;
         }
         finally
         {
@@ -269,10 +267,7 @@ public partial class OverlayWindow : Window
                 case PipelinePhase.Idle:
                 default:
                     MorphTo(CircleSize, CircleSize, CircleSize / 2);
-                    FadeTo(0, FadeOutTime, onCompleted: () =>
-                    {
-                        PushPixels(); // final zero-alpha push clears the surface
-                    });
+                    FadeTo(0, FadeOutTime, onCompleted: () => PushPixels());
                     break;
             }
         });
@@ -308,7 +303,7 @@ public partial class OverlayWindow : Window
         _fadeClock = System.Diagnostics.Stopwatch.StartNew();
         if (alpha > 0)
         {
-            CenterAtTop(); // UpdateLayeredWindow positions from Left/Top each push
+            CenterAtTop();
         }
         EnsureFrameLoop();
     }
@@ -366,7 +361,6 @@ public partial class OverlayWindow : Window
     private const int WS_EX_NOACTIVATE = 0x08000000;
     private const int WS_EX_TRANSPARENT = 0x00000020;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
-    private const uint LWA_ALPHA = 0x2;
     private const uint ULW_ALPHA = 0x2;
     private const byte AC_SRC_OVER = 0x00;
     private const byte AC_SRC_ALPHA = 0x01;
@@ -378,10 +372,6 @@ public partial class OverlayWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

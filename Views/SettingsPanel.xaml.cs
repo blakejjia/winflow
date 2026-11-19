@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Windows;
@@ -14,74 +13,41 @@ using Wpf.Ui.Controls;
 namespace WinFlow.Views;
 
 /// <summary>
-/// The settings dialog (opened from the main window's rail). Pure view over the
-/// app-lifetime AppState; closing just closes the dialog — the pipeline lives on.
+/// One settings pane (General / System / AI / Privacy / Prompts), hosted inside
+/// the main window under a breadcrumb. Pure view over the app-lifetime AppState.
 /// </summary>
-public partial class SettingsWindow : FluentWindow
+public partial class SettingsPanel : System.Windows.Controls.UserControl
 {
     private readonly AppState _appState;
     private readonly HttpClient _httpClient;
     private string _currentApiKey = string.Empty;
-    private bool _allowClose;
     private bool _loadingSettings;
     private IReadOnlyList<ModelInfo> _models = Array.Empty<ModelInfo>();
     private bool _modelsLoading;
 
-    public SettingsWindow(AppState appState, HttpClient httpClient)
+    public SettingsPanel(AppState appState, HttpClient httpClient)
     {
         InitializeComponent();
         _appState = appState;
         _httpClient = httpClient;
-        Loaded += OnWindowLoaded;
-        SystemThemeWatcher.Watch(this);
+        Loaded += OnPanelLoaded;
     }
 
-    public void CloseForShutdown()
-    {
-        _allowClose = true;
-        Close();
-    }
-
-    protected override void OnClosing(CancelEventArgs e)
-    {
-        if (!_allowClose)
-        {
-            e.Cancel = true;
-            Hide();
-            return;
-        }
-        base.OnClosing(e);
-    }
-
-    private void OnWindowLoaded(object sender, RoutedEventArgs e)
-    {
-        LoadSettingsIntoUi();
-        ShowPane("General");
-        if (_models.Count == 0 && !_modelsLoading)
-        {
-            _ = RefreshModelsAsync(quiet: true);
-        }
-    }
-
-    // ---------- rail ----------
-
-    private void SettingsTab_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is string tag)
-        {
-            ShowPane(tag);
-        }
-    }
-
-    private void ShowPane(string tag)
+    /// <summary>Shows one pane by tag: General / System / Ai / Privacy / Prompts.</summary>
+    public void ShowPane(string tag)
     {
         foreach (var pane in new[] { PaneGeneral, PaneSystem, PaneAi, PanePrivacy, PanePrompts })
         {
             pane.Visibility = pane.Name == $"Pane{tag}" ? Visibility.Visible : Visibility.Collapsed;
         }
-        foreach (var tab in new[] { TabGeneral, TabSystem, TabAi, TabPrivacy, TabPrompts })
+    }
+
+    private void OnPanelLoaded(object sender, RoutedEventArgs e)
+    {
+        LoadSettingsIntoUi();
+        if (_models.Count == 0 && !_modelsLoading)
         {
-            tab.Appearance = (string)tab.Tag == tag ? ControlAppearance.Secondary : ControlAppearance.Transparent;
+            _ = RefreshModelsAsync(quiet: true);
         }
     }
 
