@@ -1,0 +1,46 @@
+name: Build & Test WinFlow
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore Dependencies
+      run: dotnet restore WinFlow.slnx
+
+    - name: Build Solution
+      run: dotnet build WinFlow.slnx --configuration Release --no-restore
+
+    - name: Run Unit Tests
+      run: dotnet test tests/WinFlow.Tests/WinFlow.Tests.csproj --configuration Release --no-build --verbosity normal
+
+    - name: Publish Single-File Executable
+      run: |
+        dotnet publish src/WinFlow.App/WinFlow.App.csproj `
+          -c Release `
+          -r win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:EnableCompressionInSingleFile=true `
+          -o ./publish
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: WinFlow-win-x64
+        path: ./publish/WinFlow.App.exe
