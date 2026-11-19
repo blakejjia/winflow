@@ -20,7 +20,7 @@ public class SystemTrayManager : IDisposable
         _notifyIcon = new NotifyIcon
         {
             Text = "WinFlow - Context-Aware Voice Dictation",
-            Icon = SystemIcons.Application,
+            Icon = CreateAppIcon(),
             Visible = true
         };
 
@@ -45,6 +45,24 @@ public class SystemTrayManager : IDisposable
         _notifyIcon.DoubleClick += (s, e) => OpenSettingsRequested?.Invoke();
 
         _appState.PhaseChanged += OnPhaseChanged;
+    }
+
+    private static Icon CreateAppIcon()
+    {
+        using var bitmap = new Bitmap(32, 32);
+        using var g = Graphics.FromImage(bitmap);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var brush = new SolidBrush(Color.FromArgb(0, 120, 212));
+        g.FillEllipse(brush, 2, 2, 28, 28);
+        using var font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
+        using var textBrush = new SolidBrush(Color.White);
+        var format = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center
+        };
+        g.DrawString("W", font, textBrush, new RectangleF(0, 0, 32, 32), format);
+        return Icon.FromHandle(bitmap.GetHicon());
     }
 
     public void ShowNotification(string title, string message)

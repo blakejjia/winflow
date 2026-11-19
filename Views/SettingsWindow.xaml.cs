@@ -39,6 +39,7 @@ public partial class SettingsWindow : FluentWindow
 
     private async void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
+        Console.WriteLine("[WinFlow] Settings window opened. Initializing pipeline services...");
         if (_appState == null)
         {
             var settings = await _settingsService.LoadSettingsAsync();
@@ -88,20 +89,37 @@ public partial class SettingsWindow : FluentWindow
                 _httpClient?.Dispose();
                 System.Windows.Application.Current.Shutdown();
             };
+
+            Console.WriteLine("[WinFlow] Audio, keyboard hooks & system tray ready!");
+            Console.WriteLine("[WinFlow] Hold CapsLock anywhere to dictate speech to text.");
         }
 
         LoadSettingsIntoUi();
+
+        // Bring window to foreground
+        Topmost = true;
+        Topmost = false;
+        Activate();
+        Focus();
     }
 
-    protected override void OnClosing(CancelEventArgs e)
+    protected override void OnClosed(EventArgs e)
     {
-        // Minimize to system tray on window close
-        e.Cancel = true;
-        Hide();
-        _trayManager?.ShowNotification(
-            "WinFlow Minimized",
-            "WinFlow is running in your system tray. Hold CapsLock anytime to speak, or click the tray icon to reopen.");
-        base.OnClosing(e);
+        Console.WriteLine("[WinFlow] Window closed by user. Terminating process cleanly...");
+        try
+        {
+            _trayManager?.Dispose();
+            _overlayWindow?.Close();
+            _appState?.Dispose();
+            _httpClient?.Dispose();
+        }
+        catch
+        {
+            // Ignore during exit
+        }
+        base.OnClosed(e);
+        System.Windows.Application.Current.Shutdown();
+        Environment.Exit(0);
     }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
