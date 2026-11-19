@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using WpfRectangle = System.Windows.Shapes.Rectangle;
 
-namespace WinFlow.App.Controls;
+namespace WinFlow.Controls;
 
 public class WaveformVisualizer : StackPanel
 {

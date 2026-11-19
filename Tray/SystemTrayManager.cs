@@ -2,7 +2,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using WinFlow.Core.Pipeline;
 
-namespace WinFlow.App.Tray;
+namespace WinFlow.Tray;
 
 public class SystemTrayManager : IDisposable
 {

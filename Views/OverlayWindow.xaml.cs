@@ -4,7 +4,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using WinFlow.Core.Pipeline;
 
-namespace WinFlow.App.Views;
+namespace WinFlow.Views;
 
 public partial class OverlayWindow : Window
 {

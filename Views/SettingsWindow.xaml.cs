@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Windows;
@@ -7,24 +8,100 @@ using WinFlow.Core.Models;
 using WinFlow.Core.Pipeline;
 using WinFlow.Core.Prompts;
 using WinFlow.Core.Services;
+using WinFlow.Tray;
+using WinFlow.WindowsInterops.Context;
+using WinFlow.WindowsInterops.Keyboard;
+using WinFlow.WindowsInterops.TextInsertion;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
-namespace WinFlow.App.Views;
+namespace WinFlow.Views;
 
 public partial class SettingsWindow : FluentWindow
 {
-    private readonly AppState _appState;
-    private readonly LocalSettingsService _settingsService;
+    private AppState? _appState;
+    private OverlayWindow? _overlayWindow;
+    private SystemTrayManager? _trayManager;
+    private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private readonly LocalSettingsService _settingsService = new();
     private string _currentApiKey = string.Empty;
 
-    public SettingsWindow(AppState appState)
+    public SettingsWindow()
     {
         InitializeComponent();
+        Loaded += OnWindowLoaded;
+    }
+
+    public SettingsWindow(AppState appState) : this()
+    {
         _appState = appState;
-        _settingsService = new LocalSettingsService();
+    }
+
+    private async void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        if (_appState == null)
+        {
+            var settings = await _settingsService.LoadSettingsAsync();
+            var audio = new WasapiAudioRecorder();
+            var hook = new KeyboardHookManager();
+            var context = new WindowsContextService();
+            var transcription = new TranscriptionService(_httpClient, settings);
+            var vision = new ContextVisionService(_httpClient, settings);
+            var postProcessing = new PostProcessingService(_httpClient, settings);
+            var injector = new WindowsTextInjector();
+
+            _appState = new AppState(
+                audio,
+                hook,
+                context,
+                transcription,
+                vision,
+                postProcessing,
+                injector,
+                _settingsService);
+
+            await _appState.InitializeAsync();
+
+            _overlayWindow = new OverlayWindow(_appState);
+            _trayManager = new SystemTrayManager(_appState);
+
+            _trayManager.OpenSettingsRequested += () =>
+            {
+                Show();
+                WindowState = WindowState.Normal;
+                Activate();
+            };
+
+            _trayManager.OpenRunLogRequested += () =>
+            {
+                Show();
+                WindowState = WindowState.Normal;
+                NavigateToRunLog();
+                Activate();
+            };
+
+            _trayManager.ExitRequested += () =>
+            {
+                _trayManager?.Dispose();
+                _overlayWindow?.Close();
+                _appState?.Dispose();
+                _httpClient?.Dispose();
+                System.Windows.Application.Current.Shutdown();
+            };
+        }
 
         LoadSettingsIntoUi();
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        // Minimize to system tray on window close
+        e.Cancel = true;
+        Hide();
+        _trayManager?.ShowNotification(
+            "WinFlow Minimized",
+            "WinFlow is running in your system tray. Hold CapsLock anytime to speak, or click the tray icon to reopen.");
+        base.OnClosing(e);
     }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -46,6 +123,7 @@ public partial class SettingsWindow : FluentWindow
 
     private void LoadSettingsIntoUi()
     {
+        if (_appState == null) return;
         var s = _appState.Settings;
 
         _currentApiKey = s.GroqApiKey;
@@ -168,12 +246,14 @@ public partial class SettingsWindow : FluentWindow
 
     private void RefreshHistoryGrid()
     {
+        if (_appState == null) return;
         HistoryDataGrid.ItemsSource = null;
         HistoryDataGrid.ItemsSource = _appState.History;
     }
 
     private async void SaveButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_appState == null) return;
         var s = _appState.Settings;
 
         s.GroqApiKey = _currentApiKey.Trim();
