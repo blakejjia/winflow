@@ -83,7 +83,7 @@ public partial class App : System.Windows.Application
             new TranscriptionService(_httpClient, settingsProvider),
             new ContextVisionService(_httpClient, settingsProvider),
             new PostProcessingService(_httpClient, settingsProvider),
-            new WindowsTextInjector(),
+            new WindowsTextInjector(settingsProvider),
             settingsService,
             settingsProvider);
 

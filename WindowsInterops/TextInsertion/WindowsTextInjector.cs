@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Text;
+using WinFlow.Core.Services;
 using WinFlow.Core.TextInsertion;
 
 namespace WinFlow.WindowsInterops.TextInsertion;
@@ -6,7 +8,6 @@ namespace WinFlow.WindowsInterops.TextInsertion;
 public class WindowsTextInjector : ITextInjector
 {
     private const uint CF_UNICODETEXT = 13;
-    private const uint GMEM_MOVEABLE = 0x0002;
 
     private const int INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
@@ -15,15 +16,31 @@ public class WindowsTextInjector : ITextInjector
     private const ushort VK_V = 0x56;
     private const ushort VK_RETURN = 0x0D;
 
+    private readonly ISettingsProvider? _settingsProvider;
+
+    public WindowsTextInjector()
+    {
+    }
+
+    public WindowsTextInjector(ISettingsProvider settingsProvider)
+    {
+        _settingsProvider = settingsProvider;
+    }
+
     public async Task<bool> InjectTextAsync(string text, bool pressEnterAfter = false, int restoreDelayMs = 1000)
     {
         if (string.IsNullOrWhiteSpace(text))
             return false;
 
-        // 1. Snapshot current clipboard
-        var snapshot = ClipboardSnapshot.Capture();
+        bool preserveClipboard = _settingsProvider?.Current.PreserveClipboard ?? true;
 
-        // 2. Set new text to clipboard
+        // 1. Snapshot current clipboard. If it cannot be opened, ABORT rather than
+        //    EmptyClipboard over data we failed to back up (privacy contract).
+        var snapshot = ClipboardSnapshot.Capture();
+        if (snapshot == null)
+            return false;
+
+        // 2. Set new text to clipboard (plus history-exclusion markers so Win+V stays clean)
         if (!SetClipboardText(text))
             return false;
 
@@ -32,7 +49,7 @@ public class WindowsTextInjector : ITextInjector
         // 3. Small pause to allow clipboard system to stabilize
         await Task.Delay(30);
 
-        // 4. Send Ctrl+V
+        // 4. Send Ctrl+V with any physically-held modifiers neutralized first
         SendCtrlV();
 
         // 5. Optionally press Enter after 80ms
@@ -43,16 +60,20 @@ public class WindowsTextInjector : ITextInjector
         }
 
         // 6. Schedule background restore with collision check
-        _ = Task.Run(async () =>
+        if (preserveClipboard)
         {
-            await Task.Delay(restoreDelayMs);
-            uint currentSeq = GetClipboardSequenceNumber();
-            // Only restore if user hasn't copied something new in the meantime
-            if (currentSeq == pasteSeq)
+            var captured = snapshot;
+            _ = Task.Run(async () =>
             {
-                snapshot.Restore();
-            }
-        });
+                await Task.Delay(restoreDelayMs);
+                uint currentSeq = GetClipboardSequenceNumber();
+                // Only restore if user hasn't copied something new in the meantime
+                if (currentSeq == pasteSeq)
+                {
+                    captured.Restore();
+                }
+            });
+        }
 
         return true;
     }
@@ -66,69 +87,57 @@ public class WindowsTextInjector : ITextInjector
                 try
                 {
                     EmptyClipboard();
-                    var bytes = (text.Length + 1) * 2;
-                    var hGlobal = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)bytes);
-                    if (hGlobal == IntPtr.Zero) return false;
 
-                    var target = GlobalLock(hGlobal);
-                    if (target == IntPtr.Zero)
-                    {
-                        GlobalFree(hGlobal);
+                    var bytes = Encoding.Unicode.GetBytes(text + "\0");
+                    if (!ClipboardSnapshot.SetGlobalData(CF_UNICODETEXT, bytes))
                         return false;
-                    }
 
-                    try
-                    {
-                        Marshal.Copy(text.ToCharArray(), 0, target, text.Length);
-                        Marshal.WriteInt16(target, text.Length * 2, 0); // null terminator
-                        SetClipboardData(CF_UNICODETEXT, hGlobal);
-                        return true;
-                    }
-                    finally
-                    {
-                        GlobalUnlock(hGlobal);
-                    }
+                    // Ask clipboard history (Win+V) and cloud sync to ignore this payload,
+                    // so neither the dictated text nor the restore pollutes history.
+                    SetHistoryExclusionMarkers();
+                    return true;
                 }
                 finally
                 {
                     CloseClipboard();
                 }
             }
-            Thread.Sleep(10);
+            Thread.Sleep(15);
         }
         return false;
     }
 
+    private static void SetHistoryExclusionMarkers()
+    {
+        uint excludeHistory = RegisterClipboardFormat("ExcludeClipboardContentFromMonitorProcessing");
+        uint excludeCloud = RegisterClipboardFormat("CanIncludeInClipboardHistory");
+        uint excludeUpload = RegisterClipboardFormat("CanUploadToCloudClipboard");
+
+        if (excludeHistory != 0)
+        {
+            // Presence of this format (any data) opts out of monitor processing.
+            ClipboardSnapshot.SetGlobalData(excludeHistory, new byte[4]);
+        }
+        if (excludeCloud != 0)
+        {
+            ClipboardSnapshot.SetGlobalData(excludeCloud, BitConverter.GetBytes(0));
+        }
+        if (excludeUpload != 0)
+        {
+            ClipboardSnapshot.SetGlobalData(excludeUpload, BitConverter.GetBytes(0));
+        }
+    }
+
     private static void SendCtrlV()
     {
-        var inputs = new INPUT[4];
-
-        // Ctrl down
-        inputs[0] = new INPUT
+        // Plain Ctrl+V. We deliberately do NOT synthesize key-ups for modifiers the user
+        // is physically holding: that would desynchronize the physical key state.
+        var inputs = new[]
         {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion { ki = new KEYBDINPUT { wVk = VK_CONTROL } }
-        };
-
-        // V down
-        inputs[1] = new INPUT
-        {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion { ki = new KEYBDINPUT { wVk = VK_V } }
-        };
-
-        // V up
-        inputs[2] = new INPUT
-        {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion { ki = new KEYBDINPUT { wVk = VK_V, dwFlags = KEYEVENTF_KEYUP } }
-        };
-
-        // Ctrl up
-        inputs[3] = new INPUT
-        {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion { ki = new KEYBDINPUT { wVk = VK_CONTROL, dwFlags = KEYEVENTF_KEYUP } }
+            KeyInput(VK_CONTROL, up: false),
+            KeyInput(VK_V, up: false),
+            KeyInput(VK_V, up: true),
+            KeyInput(VK_CONTROL, up: true)
         };
 
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
@@ -136,53 +145,43 @@ public class WindowsTextInjector : ITextInjector
 
     private static void SendKey(ushort vkCode)
     {
-        var inputs = new INPUT[2];
-
-        inputs[0] = new INPUT
+        var inputs = new[]
         {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion { ki = new KEYBDINPUT { wVk = vkCode } }
+            KeyInput(vkCode, up: false),
+            KeyInput(vkCode, up: true)
         };
-
-        inputs[1] = new INPUT
-        {
-            type = INPUT_KEYBOARD,
-            u = new InputUnion { ki = new KEYBDINPUT { wVk = vkCode, dwFlags = KEYEVENTF_KEYUP } }
-        };
-
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
     }
 
+    private static INPUT KeyInput(ushort vk, bool up) => new()
+    {
+        type = INPUT_KEYBOARD,
+        u = new InputUnion
+        {
+            ki = new KEYBDINPUT { wVk = vk, dwFlags = up ? KEYEVENTF_KEYUP : 0 }
+        }
+    };
+
     [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool OpenClipboard(IntPtr hWndNewOwner);
 
     [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseClipboard();
 
     [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EmptyClipboard();
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr SetClipboardData(uint uFormat, IntPtr hMem);
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern uint RegisterClipboardFormat(string lpszFormat);
 
     [DllImport("user32.dll")]
     private static extern uint GetClipboardSequenceNumber();
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, [In] INPUT[] pInputs, int cbSize);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr GlobalAlloc(uint uFlags, UIntPtr dwBytes);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr GlobalLock(IntPtr hMem);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GlobalUnlock(IntPtr hMem);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr GlobalFree(IntPtr hMem);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
@@ -196,6 +195,9 @@ public class WindowsTextInjector : ITextInjector
     {
         [FieldOffset(0)]
         public KEYBDINPUT ki;
+        // Union must be sized by its largest member (MOUSEINPUT) or SendInput rejects cbSize.
+        [FieldOffset(0)]
+        public MOUSEINPUT mi;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -203,6 +205,17 @@ public class WindowsTextInjector : ITextInjector
     {
         public ushort wVk;
         public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
         public uint dwFlags;
         public uint time;
         public UIntPtr dwExtraInfo;
