@@ -29,6 +29,10 @@ public class KeyboardHookManager : IKeyboardHook
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly object _lifecycleLock = new();
 
+    // Deferred gesture decisions run on timers, never inside the hook callback.
+    private System.Threading.Timer? _holdTimer;
+    private System.Threading.Timer? _tapTimer;
+
     private IntPtr _hookId = IntPtr.Zero;
     private LowLevelKeyboardProc? _proc; // rooted field: the native hook holds this delegate
     private Thread? _hookThread;
@@ -125,6 +129,7 @@ public class KeyboardHookManager : IKeyboardHook
             }
 
             _stateMachine.Reset();
+            CancelGestureTimers();
         }
     }
 
@@ -156,28 +161,60 @@ public class KeyboardHookManager : IKeyboardHook
                 long now = _stopwatch.ElapsedMilliseconds;
 
                 _stateMachine.DoubleTapLockEnabled = _doubleTapLockEnabled;
-                var action = _stateMachine.ProcessEvent(dir, isShiftDown, now);
-                if (action != null)
-                {
-                    if (action == ShortcutAction.ShiftCapsLockPassThrough)
-                    {
-                        // Let Windows process native CapsLock toggle
-                        return CallNextHookEx(_hookId, nCode, wParam, lParam);
-                    }
+                int doubleTapWindow = GetDoubleClickTime();
+                var action = _stateMachine.ProcessEvent(dir, isShiftDown, now, doubleTapWindow);
 
-                    Dispatch(action.Value);
-                    return (IntPtr)1; // Consume CapsLock to prevent native uppercase toggle
+                // Schedule/cancel the deferred decisions. Generation guards make late
+                // timer callbacks harmless if a newer gesture already superseded them.
+                CancelGestureTimers();
+                if (dir == KeyDirection.Down && action == null && !_stateMachine.IsWaitingSecondTap)
+                {
+                    int gen = _stateMachine.Generation;
+                    _holdTimer = new System.Threading.Timer(_ =>
+                    {
+                        if (gen != _stateMachine.Generation) return;
+                        bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+                        var holdAction = _stateMachine.OnHoldTimer(shift);
+                        if (holdAction != null) Dispatch(holdAction.Value);
+                    }, null, CapsLockStateMachine.HoldThresholdMs, Timeout.Infinite);
+                }
+                else if (_stateMachine.IsWaitingSecondTap)
+                {
+                    int gen = _stateMachine.Generation;
+                    _tapTimer = new System.Threading.Timer(_ =>
+                    {
+                        if (gen != _stateMachine.Generation) return;
+                        _stateMachine.OnTapTimer();
+                    }, null, doubleTapWindow, Timeout.Infinite);
                 }
 
-                // Auto-repeat Downs and Ups during active recording/lock stay suppressed.
-                if (_stateMachine.IsRecording || _stateMachine.IsToggleLocked)
+                if (action == ShortcutAction.ShiftCapsLockPassThrough)
                 {
-                    return (IntPtr)1;
+                    // Let Windows process the native CapsLock toggle.
+                    return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                }
+
+                if (action != null)
+                {
+                    Dispatch(action.Value);
+                }
+
+                if (_stateMachine.ShouldConsumeKey(dir))
+                {
+                    return (IntPtr)1; // swallow so Windows never toggles CapsLock
                 }
             }
         }
 
         return CallNextHookEx(_hookId, nCode, wParam, lParam);
+    }
+
+    private void CancelGestureTimers()
+    {
+        _holdTimer?.Dispose();
+        _holdTimer = null;
+        _tapTimer?.Dispose();
+        _tapTimer = null;
     }
 
     /// <summary>
@@ -233,6 +270,9 @@ public class KeyboardHookManager : IKeyboardHook
 
     [DllImport("user32.dll")]
     private static extern short GetKeyState(int nVirtKey);
+
+    [DllImport("user32.dll")]
+    private static extern int GetDoubleClickTime();
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

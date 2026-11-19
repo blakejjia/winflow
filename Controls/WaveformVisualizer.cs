@@ -7,16 +7,16 @@ namespace WinFlow.Controls;
 
 /// <summary>
 /// A row of slim white bars that breathe. Every bar sways gently on its own slow
-/// sine even in silence; the microphone level lifts them all together. Rendered
-/// per frame via CompositionTarget.Rendering (no storyboard stacking), so motion
-/// is continuous and organic rather than stepped.
+/// sine even in silence; the microphone level lifts them all together. The owner
+/// calls <see cref="Tick"/> once per frame (the HUD's layered-window loop), so
+/// motion is continuous and organic rather than stepped.
 /// </summary>
 public class WaveformVisualizer : StackPanel
 {
     private const int BarCount = 5;
-    private const double MinHeight = 4.0;
-    private const double MaxHeight = 22.0;
-    private const double SlotHeight = MaxHeight + 4;
+    private const double BarMinHeight = 4.0;
+    private const double BarMaxHeight = 22.0;
+    private const double SlotHeight = BarMaxHeight + 4;
 
     private readonly WpfRectangle[] _bars = new WpfRectangle[BarCount];
 
@@ -28,7 +28,6 @@ public class WaveformVisualizer : StackPanel
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
     private double _displayLevel;   // smoothed toward _targetLevel each frame
     private double _targetLevel;
-    private bool _rendering;
 
     public static readonly DependencyProperty AudioLevelProperty =
         DependencyProperty.Register(
@@ -56,7 +55,7 @@ public class WaveformVisualizer : StackPanel
             _bars[i] = new WpfRectangle
             {
                 Width = 3.5,
-                Height = MinHeight,
+                Height = BarMinHeight,
                 RadiusX = 1.75,
                 RadiusY = 1.75,
                 Fill = System.Windows.Media.Brushes.White,
@@ -67,12 +66,6 @@ public class WaveformVisualizer : StackPanel
             Children.Add(slot);
         }
 
-        IsVisibleChanged += (_, e) =>
-        {
-            if ((bool)e.NewValue) StartRendering();
-            else StopRendering();
-        };
-        Unloaded += (_, _) => StopRendering();
     }
 
     private static void OnAudioLevelChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -83,21 +76,12 @@ public class WaveformVisualizer : StackPanel
         }
     }
 
-    private void StartRendering()
-    {
-        if (_rendering) return;
-        _rendering = true;
-        CompositionTarget.Rendering += OnFrame;
-    }
-
-    private void StopRendering()
-    {
-        if (!_rendering) return;
-        _rendering = false;
-        CompositionTarget.Rendering -= OnFrame;
-    }
-
-    private void OnFrame(object? sender, EventArgs e)
+    /// <summary>
+    /// Advances the animation one frame. The HUD drives this from its layered-window
+    /// frame loop (CompositionTarget.Rendering does not run for UpdateLayeredWindow
+    /// surfaces, so the owner ticks us explicitly).
+    /// </summary>
+    public void Tick()
     {
         double t = _clock.Elapsed.TotalSeconds;
 
@@ -112,7 +96,7 @@ public class WaveformVisualizer : StackPanel
             double idle = 0.10 + 0.12 * sway;
 
             double energy = Math.Clamp(idle + _displayLevel * LevelWeight[i], 0.0, 1.0);
-            _bars[i].Height = MinHeight + (MaxHeight - MinHeight) * energy;
+            _bars[i].Height = BarMinHeight + (BarMaxHeight - BarMinHeight) * energy;
         }
     }
 }

@@ -283,8 +283,8 @@
                                     <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
                                         <TextBlock Text="Hold CapsLock" FontFamily="Consolas" FontSize="12"/>
                                     </Border>
-                                    <TextBlock Grid.Column="1" Text="Speak while held; release to paste." VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Grid.Column="1" Text="Keep it held a moment, then speak; release to paste." VerticalAlignment="Center"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </Grid>
                                 <Grid Margin="12,10">
                                     <Grid.ColumnDefinitions>
@@ -294,8 +294,8 @@
                                     <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
                                         <TextBlock Text="Double-tap CapsLock" FontFamily="Consolas" FontSize="12"/>
                                     </Border>
-                                    <TextBlock Grid.Column="1" Text="Lock recording on — talk hands-free." VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Grid.Column="1" Text="Two quick taps lock recording on — talk hands-free. A single tap does nothing." VerticalAlignment="Center"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 </Grid>
                                 <Grid Margin="12,10">
                                     <Grid.ColumnDefinitions>

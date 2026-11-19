@@ -3,19 +3,19 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:WinFlow.Controls"
         Title="WinFlow HUD"
-        Width="200" Height="80"
+        Width="260" Height="80"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        Background="{x:Null}"
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         ShowActivated="False"
         Focusable="False">
 
-    <!-- Fixed-size transparent window; only the pill is painted. The pill morphs
-         between a wide capsule (listening) and a small circle (transcribing). -->
-    <Grid>
+    <!-- Fixed-size window whose background is NULL (never painted). Only the pill
+         renders; the layered surface is per-pixel alpha, so everything outside the
+         pill is truly absent. Window Opacity drives the fade in/out. -->
+    <Grid Background="{x:Null}">
         <Border x:Name="PillBorder"
                 Background="#FF000000"
                 CornerRadius="19"
