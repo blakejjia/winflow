@@ -29,8 +29,10 @@ WinFlow is a native Windows desktop utility for speech-to-text dictation and in-
 ### Building and Running
 
 ```powershell
-dotnet run
+./run.ps1
 ```
+
+This builds once and launches `WinFlow.exe` detached (no console window). `run.cmd` does the same for cmd.exe. `dotnet run` also works for development.
 
 Run unit tests:
 
@@ -46,4 +48,6 @@ Publish a self-contained executable:
 
 ## Configuration
 
-WinFlow runs in the Windows system tray. Open the settings window from the tray menu to configure your API endpoint and credentials.
+WinFlow runs in the Windows system tray. Open the settings window from the tray menu to configure your API endpoint and credentials — saved changes apply immediately, no restart needed.
+
+Closing the settings window hides it to the tray; dictation keeps working. Use **Exit WinFlow** in the tray menu to quit. Only one instance can run at a time; a second launch exits quietly.
