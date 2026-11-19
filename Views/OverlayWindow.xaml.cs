@@ -7,13 +7,22 @@ using WinFlow.Core.Pipeline;
 namespace WinFlow.Views;
 
 /// <summary>
-/// WhisperFlow-style HUD: a bare black capsule that hugs its content, showing only
-/// white waveform dots while recording and a small spinner while transcribing.
-/// No labels, no timer, no glow — everything outside the capsule is fully transparent.
+/// Two-state HUD: breathing white bars while listening, a small spinner while
+/// transcribing. The black pill morphs between capsule and circle in ~120ms —
+/// never a hard cut. Success returns straight to hidden; errors/advisories are
+/// the only states that show words.
 /// </summary>
 public partial class OverlayWindow : Window
 {
+    private const double CapsuleWidth = 96;
+    private const double CapsuleHeight = 38;
+    private const double CircleSize = 38;
+    private const double ErrorWidth = 240;
+    private const double ErrorHeight = 52;
+    private static readonly Duration MorphDuration = new(TimeSpan.FromMilliseconds(120));
+
     private readonly AppState _appState;
+    private Storyboard? _spinnerStoryboard;
 
     public OverlayWindow(AppState appState)
     {
@@ -25,13 +34,7 @@ public partial class OverlayWindow : Window
         _appState.ErrorOccurred += OnErrorOccurred;
         _appState.NoticeRaised += OnNoticeRaised;
 
-        Loaded += OnLoaded;
-        SizeChanged += (_, _) => CenterAtTop();
-    }
-
-    private void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        CenterAtTop();
+        Loaded += (_, _) => CenterAtTop();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -41,92 +44,120 @@ public partial class OverlayWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
 
-        // WS_EX_NOACTIVATE = 0x08000000 (never takes focus)
-        // WS_EX_TRANSPARENT = 0x00000020 (mouse clicks pass through)
-        // WS_EX_TOOLWINDOW = 0x00000080 (hidden from Alt-Tab)
+        // WS_EX_NOACTIVATE = never takes focus; WS_EX_TRANSPARENT = click-through;
+        // WS_EX_TOOLWINDOW = hidden from Alt-Tab.
         SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW);
     }
 
     public void CenterAtTop()
     {
         var screenWidth = SystemParameters.PrimaryScreenWidth;
-        Left = (screenWidth - ActualWidth) / 2;
-        Top = 28;
+        Left = (screenWidth - Width) / 2;
+        Top = 24;
     }
 
     private void OnPhaseChanged(PipelinePhase phase)
     {
-        // Async marshal: pipeline events can originate on input/audio threads and must
-        // never block waiting on the UI thread.
+        // Async marshal: pipeline events can originate on input/audio threads.
         Dispatcher.BeginInvoke(() =>
         {
-            if (phase == PipelinePhase.Recording || phase == PipelinePhase.Idle)
-            {
-                ElevatedBadge.Visibility = Visibility.Collapsed;
-            }
-            Waveform.Visibility = Visibility.Collapsed;
-            TranscribingPanel.Visibility = Visibility.Collapsed;
-            FeedbackPanel.Visibility = Visibility.Collapsed;
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            StopSpinner();
-
             switch (phase)
             {
                 case PipelinePhase.Recording:
                     Waveform.AudioLevel = 0;
-                    Waveform.Visibility = Visibility.Visible;
-                    ShowWithSlide();
+                    SetContent(waveform: true);
+                    MorphTo(CapsuleWidth, CapsuleHeight, radius: CapsuleHeight / 2);
+                    Show();
                     break;
 
                 case PipelinePhase.Transcribing:
-                    TranscribingPanel.Visibility = Visibility.Visible;
-                    Show();
+                case PipelinePhase.Inserting:
+                    SetContent(spinner: true);
+                    MorphTo(CircleSize, CircleSize, radius: CircleSize / 2);
                     StartSpinner();
-                    break;
-
-                case PipelinePhase.Feedback:
-                    FeedbackPanel.Visibility = Visibility.Visible;
                     Show();
                     break;
 
                 case PipelinePhase.Error:
-                    ErrorPanel.Visibility = Visibility.Visible;
+                    // Error text is set by OnErrorOccurred; give it room.
+                    SetContent(advisory: true);
+                    MorphTo(ErrorWidth, ErrorHeight, radius: 14);
                     Show();
                     break;
 
+                case PipelinePhase.Feedback:
                 case PipelinePhase.Idle:
                 default:
-                    Hide();
+                    // No success state: shrink away quickly, then hide.
+                    StopSpinner();
+                    MorphTo(CircleSize, CircleSize, radius: CircleSize / 2, onCompleted: Hide);
                     break;
             }
         });
     }
 
-    private void ShowWithSlide()
+    private void SetContent(bool waveform = false, bool spinner = false, bool advisory = false)
     {
-        Show();
-        CenterAtTop();
-        var slide = new DoubleAnimation
+        Waveform.Visibility = waveform ? Visibility.Visible : Visibility.Collapsed;
+        TranscribingPanel.Visibility = spinner ? Visibility.Visible : Visibility.Collapsed;
+        AdvisoryPanel.Visibility = advisory ? Visibility.Visible : Visibility.Collapsed;
+        if (!advisory)
         {
-            From = -10,
-            To = 0,
-            Duration = TimeSpan.FromMilliseconds(180),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        };
-        var fade = new DoubleAnimation
-        {
-            From = 0,
-            To = 1,
-            Duration = TimeSpan.FromMilliseconds(160)
-        };
-        PillTransform.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, slide);
-        PillBorder.BeginAnimation(OpacityProperty, fade);
+            ElevatedBadge.Visibility = Visibility.Collapsed;
+            ErrorText.Visibility = Visibility.Collapsed;
+        }
+        if (!spinner) StopSpinner();
     }
 
-    private System.Windows.Media.Animation.Storyboard? _spinnerStoryboard;
+    private System.Windows.Threading.DispatcherTimer? _morphTimer;
+    private System.Diagnostics.Stopwatch? _morphClock;
+    private (double W, double H, double R) _morphFrom, _morphTo;
+    private Action? _morphCompleted;
+
+    /// <summary>Animates width, height and corner radius together — the capsule
+    /// visibly rounds into a circle (and back) instead of swapping images.
+    /// WPF has no CornerRadius animation, so all three are driven per frame.</summary>
+    private void MorphTo(double width, double height, double radius, Action? onCompleted = null)
+    {
+        _morphFrom = (PillBorder.Width, PillBorder.Height, PillBorder.CornerRadius.TopLeft);
+        _morphTo = (width, height, radius);
+        _morphCompleted = onCompleted;
+        _morphClock = System.Diagnostics.Stopwatch.StartNew();
+
+        if (_morphTimer == null)
+        {
+            _morphTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(10)
+            };
+            _morphTimer.Tick += OnMorphTick;
+        }
+        _morphTimer.Start();
+    }
+
+    private void OnMorphTick(object? sender, EventArgs e)
+    {
+        double t = Math.Clamp(_morphClock!.Elapsed.TotalMilliseconds / MorphDuration.TimeSpan.TotalMilliseconds, 0, 1);
+        // Cubic ease-in-out, matching the rest of the app's motion.
+        double k = t < 0.5 ? 4 * t * t * t : 1 - Math.Pow(-2 * t + 2, 3) / 2;
+
+        PillBorder.Width = _morphFrom.W + (_morphTo.W - _morphFrom.W) * k;
+        PillBorder.Height = _morphFrom.H + (_morphTo.H - _morphFrom.H) * k;
+        double r = _morphFrom.R + (_morphTo.R - _morphFrom.R) * k;
+        PillBorder.CornerRadius = new CornerRadius(r);
+
+        if (t >= 1)
+        {
+            _morphTimer!.Stop();
+            var done = _morphCompleted;
+            _morphCompleted = null;
+            done?.Invoke();
+        }
+    }
 
     private void StartSpinner()
     {
+        if (_spinnerStoryboard != null) return;
         var rotate = new DoubleAnimation
         {
             From = 0,
@@ -134,10 +165,10 @@ public partial class OverlayWindow : Window
             Duration = TimeSpan.FromMilliseconds(900),
             RepeatBehavior = RepeatBehavior.Forever
         };
-        _spinnerStoryboard = new System.Windows.Media.Animation.Storyboard();
+        _spinnerStoryboard = new Storyboard();
         _spinnerStoryboard.Children.Add(rotate);
-        System.Windows.Media.Animation.Storyboard.SetTarget(rotate, SpinnerArc);
-        System.Windows.Media.Animation.Storyboard.SetTargetProperty(rotate, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+        Storyboard.SetTarget(rotate, SpinnerArc);
+        Storyboard.SetTargetProperty(rotate, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
         _spinnerStoryboard.Begin();
     }
 
@@ -159,9 +190,18 @@ public partial class OverlayWindow : Window
     {
         Dispatcher.BeginInvoke(() =>
         {
-            ElevatedBadge.Visibility = notice == PipelineNotice.TargetElevated
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            if (notice == PipelineNotice.TargetElevated)
+            {
+                ElevatedBadge.Visibility = Visibility.Visible;
+                SetContent(advisory: true);
+                ElevatedBadge.Visibility = Visibility.Visible;
+                MorphTo(ErrorWidth, ErrorHeight, radius: 14);
+                Show();
+            }
+            else
+            {
+                ElevatedBadge.Visibility = Visibility.Collapsed;
+            }
         });
     }
 
@@ -171,12 +211,14 @@ public partial class OverlayWindow : Window
         {
             ErrorText.Text = message;
             ErrorText.ToolTip = message;
+            ErrorText.Visibility = Visibility.Visible;
         });
     }
 
     protected override void OnClosed(EventArgs e)
     {
         StopSpinner();
+        _morphTimer?.Stop();
         _appState.PhaseChanged -= OnPhaseChanged;
         _appState.AudioLevelChanged -= OnAudioLevelChanged;
         _appState.ErrorOccurred -= OnErrorOccurred;

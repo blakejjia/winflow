@@ -24,3 +24,7 @@ $RECYCLE.BIN/
 
 # Logs
 *.log
+
+# stray verify outputs
+binverify*/
+**/binverify*/

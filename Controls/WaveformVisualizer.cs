@@ -1,24 +1,34 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media.Animation;
-using WpfEllipse = System.Windows.Shapes.Ellipse;
+using System.Windows.Media;
+using WpfRectangle = System.Windows.Shapes.Rectangle;
 
 namespace WinFlow.Controls;
 
 /// <summary>
-/// A row of white dots that swell with the microphone level — the WhisperFlow look.
-/// At silence the dots rest small; speech makes them bloom toward the center dot.
+/// A row of slim white bars that breathe. Every bar sways gently on its own slow
+/// sine even in silence; the microphone level lifts them all together. Rendered
+/// per frame via CompositionTarget.Rendering (no storyboard stacking), so motion
+/// is continuous and organic rather than stepped.
 /// </summary>
 public class WaveformVisualizer : StackPanel
 {
-    private const int DotCount = 7;
-    private const double MinSize = 4.0;
-    private const double MaxSize = 16.0;
+    private const int BarCount = 5;
+    private const double MinHeight = 4.0;
+    private const double MaxHeight = 22.0;
+    private const double SlotHeight = MaxHeight + 4;
 
-    private readonly WpfEllipse[] _dots = new WpfEllipse[DotCount];
+    private readonly WpfRectangle[] _bars = new WpfRectangle[BarCount];
 
-    // Center-weighted: the middle dots bloom most, edges least.
-    private static readonly double[] Multipliers = { 0.45, 0.7, 0.9, 1.0, 0.9, 0.7, 0.45 };
+    // Per-bar sway: distinct periods and phases so they never move in lockstep.
+    private static readonly double[] SwayPeriodSeconds = { 1.7, 2.3, 1.9, 2.1, 1.5 };
+    private static readonly double[] SwayPhase = { 0.0, 1.3, 2.6, 0.7, 1.9 };
+    private static readonly double[] LevelWeight = { 0.75, 0.95, 1.0, 0.9, 0.7 };
+
+    private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+    private double _displayLevel;   // smoothed toward _targetLevel each frame
+    private double _targetLevel;
+    private bool _rendering;
 
     public static readonly DependencyProperty AudioLevelProperty =
         DependencyProperty.Register(
@@ -38,61 +48,71 @@ public class WaveformVisualizer : StackPanel
         Orientation = System.Windows.Controls.Orientation.Horizontal;
         HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
         VerticalAlignment = System.Windows.VerticalAlignment.Center;
-        Height = MaxSize + 2;
+        Height = SlotHeight;
 
-        for (int i = 0; i < DotCount; i++)
+        for (int i = 0; i < BarCount; i++)
         {
-            // Fixed-size slot so growing dots don't shift their neighbors.
-            var slot = new Grid
+            var slot = new Grid { Width = 8, Height = SlotHeight };
+            _bars[i] = new WpfRectangle
             {
-                Width = MaxSize,
-                Height = MaxSize,
-                Margin = new Thickness(1, 0, 1, 0)
-            };
-            _dots[i] = new WpfEllipse
-            {
-                Width = MinSize,
-                Height = MinSize,
+                Width = 3.5,
+                Height = MinHeight,
+                RadiusX = 1.75,
+                RadiusY = 1.75,
                 Fill = System.Windows.Media.Brushes.White,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center
             };
-            slot.Children.Add(_dots[i]);
+            slot.Children.Add(_bars[i]);
             Children.Add(slot);
         }
+
+        IsVisibleChanged += (_, e) =>
+        {
+            if ((bool)e.NewValue) StartRendering();
+            else StopRendering();
+        };
+        Unloaded += (_, _) => StopRendering();
     }
 
     private static void OnAudioLevelChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is WaveformVisualizer visualizer && e.NewValue is float level)
+        if (d is WaveformVisualizer v && e.NewValue is float level)
         {
-            visualizer.UpdateDots(level);
+            v._targetLevel = Math.Clamp(level, 0.0, 1.0);
         }
     }
 
-    private void UpdateDots(float level)
+    private void StartRendering()
     {
-        // level is already perceptually shaped (AudioLevelCalculator.ShapeForDisplay).
-        for (int i = 0; i < DotCount; i++)
-        {
-            double target = MinSize + (MaxSize - MinSize) * Math.Clamp(level * Multipliers[i], 0.0, 1.0);
-            AnimateDot(_dots[i], target);
-        }
+        if (_rendering) return;
+        _rendering = true;
+        CompositionTarget.Rendering += OnFrame;
     }
 
-    private static void AnimateDot(WpfEllipse dot, double target)
+    private void StopRendering()
     {
-        // Snapshot the current animated size and replace the running animation so
-        // rapid buffer updates blend smoothly instead of stacking.
-        double current = dot.Width;
-        dot.BeginAnimation(WidthProperty, null);
-        dot.BeginAnimation(HeightProperty, null);
-        dot.Width = current;
-        dot.Height = current;
+        if (!_rendering) return;
+        _rendering = false;
+        CompositionTarget.Rendering -= OnFrame;
+    }
 
-        var duration = TimeSpan.FromMilliseconds(110);
-        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        dot.BeginAnimation(WidthProperty, new DoubleAnimation { From = current, To = target, Duration = duration, EasingFunction = easing });
-        dot.BeginAnimation(HeightProperty, new DoubleAnimation { From = current, To = target, Duration = duration, EasingFunction = easing });
+    private void OnFrame(object? sender, EventArgs e)
+    {
+        double t = _clock.Elapsed.TotalSeconds;
+
+        // Attack fast, release slow — like a real VU meter's ballistics.
+        double rate = _targetLevel > _displayLevel ? 0.35 : 0.08;
+        _displayLevel += (_targetLevel - _displayLevel) * rate;
+
+        for (int i = 0; i < BarCount; i++)
+        {
+            // Idle breathing: each bar sways ±~12% of range on its own slow sine.
+            double sway = 0.5 + 0.5 * Math.Sin(2 * Math.PI * t / SwayPeriodSeconds[i] + SwayPhase[i]);
+            double idle = 0.10 + 0.12 * sway;
+
+            double energy = Math.Clamp(idle + _displayLevel * LevelWeight[i], 0.0, 1.0);
+            _bars[i].Height = MinHeight + (MaxHeight - MinHeight) * energy;
+        }
     }
 }

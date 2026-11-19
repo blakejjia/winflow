@@ -377,17 +377,51 @@
                     <ui:TextBlock Grid.Row="1" FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                   Text="Say the trigger phrase, get the replacement text — instantly, no AI involved. Works even without an API key."
                                   TextWrapping="Wrap" Margin="0,4,0,16"/>
-                    <ui:DataGrid x:Name="MacrosDataGrid" Grid.Row="2"
-                                 AutoGenerateColumns="False"
-                                 CanUserAddRows="True"
-                                 CanUserDeleteRows="True"
-                                 HeadersVisibility="Column">
-                        <ui:DataGrid.Columns>
-                            <DataGridTextColumn Header="When I say" Binding="{Binding Command}" Width="220"/>
-                            <DataGridTextColumn Header="Type this" Binding="{Binding Payload}" Width="*"/>
-                        </ui:DataGrid.Columns>
-                    </ui:DataGrid>
-                    <TextBlock Grid.Row="3" Text="Example: “my email” → you@example.com"
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="36"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="When I say" FontWeight="Medium" FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="2,0,0,0"/>
+                                <TextBlock Grid.Column="1" Text="Type this" FontWeight="Medium" FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="10,0,0,0"/>
+                            </Grid>
+                            <ItemsControl x:Name="MacrosList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="220"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="36"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ui:TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
+                                                        PlaceholderText="my email"/>
+                                            <ui:TextBox Grid.Column="1" Margin="8,0,0,0"
+                                                        Text="{Binding Payload, UpdateSourceTrigger=PropertyChanged}"
+                                                        PlaceholderText="you@example.com"/>
+                                            <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6"
+                                                        Margin="4,0,0,0" VerticalAlignment="Center"
+                                                        Click="DeleteMacro_Click" Tag="{Binding}"
+                                                        ToolTip="Remove this macro">
+                                                <ui:SymbolIcon Symbol="Delete24" FontSize="16"/>
+                                            </ui:Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <ui:Button Content="Add macro" Click="AddMacro_Click" Appearance="Secondary" Margin="0,4,0,0">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="Add24"/>
+                                </ui:Button.Icon>
+                            </ui:Button>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <TextBlock Grid.Row="3" Text="Example: say “my email” and WinFlow types you@example.com. Save to apply."
                                FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,8,0,0"/>
                 </Grid>
 

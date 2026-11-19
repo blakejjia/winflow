@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:WinFlow.Controls"
         Title="WinFlow HUD"
-        SizeToContent="WidthAndHeight"
+        Width="200" Height="80"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -13,66 +13,52 @@
         ShowActivated="False"
         Focusable="False">
 
-    <!-- The window hugs the pill (SizeToContent): there is no surrounding area at all.
-         No shadow, no border, no glow — just the black capsule. -->
-    <Border x:Name="PillBorder"
-            Background="#FF000000"
-            CornerRadius="18"
-            Padding="16,10"
-            Margin="0,0,0,0">
-        <Border.RenderTransform>
-            <TranslateTransform x:Name="PillTransform" Y="0"/>
-        </Border.RenderTransform>
+    <!-- Fixed-size transparent window; only the pill is painted. The pill morphs
+         between a wide capsule (listening) and a small circle (transcribing). -->
+    <Grid>
+        <Border x:Name="PillBorder"
+                Background="#FF000000"
+                CornerRadius="19"
+                Width="96" Height="38"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <Grid>
+                <!-- Listening: breathing white bars -->
+                <controls:WaveformVisualizer x:Name="Waveform" Visibility="Visible"/>
 
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-            <!-- Elevated Target Advisory (safety guidance, shown only when needed) -->
-            <TextBlock x:Name="ElevatedBadge"
-                       Visibility="Collapsed"
-                       Text="🛡 Elevated window — run WinFlow as admin to paste here"
-                       Foreground="#FFFFD60A"
-                       FontSize="10"
-                       FontWeight="SemiBold"
-                       HorizontalAlignment="Center"
-                       Margin="0,0,0,5"/>
+                <!-- Transcribing: small white spinner -->
+                <Grid x:Name="TranscribingPanel" Visibility="Collapsed" Width="18" Height="18"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse Width="18" Height="18" Stroke="#4DFFFFFF" StrokeThickness="2"/>
+                    <Path x:Name="SpinnerArc" Width="18" Height="18"
+                          Stroke="#FFFFFFFF" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Data="M 9,1 A 8,8 0 0 1 17,9"
+                          RenderTransformOrigin="0.5,0.5">
+                        <Path.RenderTransform>
+                            <RotateTransform x:Name="SpinnerRotation"/>
+                        </Path.RenderTransform>
+                    </Path>
+                </Grid>
 
-            <!-- Recording: white waveform dots only, like WhisperFlow -->
-            <controls:WaveformVisualizer x:Name="Waveform" Visibility="Collapsed"/>
-
-            <!-- Transcribing: small white spinner only -->
-            <Grid x:Name="TranscribingPanel" Visibility="Collapsed" Width="18" Height="18" HorizontalAlignment="Center">
-                <Ellipse Width="18" Height="18" Stroke="#4DFFFFFF" StrokeThickness="2"/>
-                <Path x:Name="SpinnerArc" Width="18" Height="18"
-                      Stroke="#FFFFFFFF" StrokeThickness="2"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                      Data="M 9,1 A 8,8 0 0 1 17,9"
-                      RenderTransformOrigin="0.5,0.5">
-                    <Path.RenderTransform>
-                        <RotateTransform x:Name="SpinnerRotation"/>
-                    </Path.RenderTransform>
-                </Path>
+                <!-- Safety advisories only (no success state) -->
+                <StackPanel x:Name="AdvisoryPanel" Visibility="Collapsed"
+                            VerticalAlignment="Center" Margin="12,0">
+                    <TextBlock x:Name="ElevatedBadge"
+                               Visibility="Collapsed"
+                               Text="🛡 Elevated window — run WinFlow as admin"
+                               Foreground="#FFFFD60A"
+                               FontSize="10" FontWeight="SemiBold"
+                               TextWrapping="Wrap" TextAlignment="Center"/>
+                    <TextBlock x:Name="ErrorText"
+                               Visibility="Collapsed"
+                               Text=""
+                               Foreground="#FFFFFFFF"
+                               FontSize="10"
+                               FontFamily="Segoe UI Variable Text, Segoe UI"
+                               TextWrapping="Wrap" TextAlignment="Center"/>
+                </StackPanel>
             </Grid>
-
-            <!-- Feedback: a lone check -->
-            <TextBlock x:Name="FeedbackPanel" Visibility="Collapsed"
-                       Text="✓" Foreground="#FFFFFFFF"
-                       FontSize="14" FontWeight="Bold"
-                       HorizontalAlignment="Center"/>
-
-            <!-- Error: brief message (the only state that needs words) -->
-            <StackPanel x:Name="ErrorPanel" Visibility="Collapsed" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="!"
-                           Foreground="#FFFF6B6B"
-                           FontSize="14" FontWeight="Bold"
-                           Margin="0,0,8,0" VerticalAlignment="Center"/>
-                <TextBlock x:Name="ErrorText"
-                           Text="Something went wrong"
-                           Foreground="#FFFFFFFF"
-                           FontSize="11"
-                           FontFamily="Segoe UI Variable Text, Segoe UI"
-                           MaxWidth="240"
-                           TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-        </StackPanel>
-    </Border>
+        </Border>
+    </Grid>
 </Window>

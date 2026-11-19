@@ -27,6 +27,7 @@ public partial class SettingsWindow : FluentWindow
     private bool _loadingSettings;
     private IReadOnlyList<ModelInfo> _models = Array.Empty<ModelInfo>();
     private bool _modelsLoading;
+    private System.Collections.ObjectModel.ObservableCollection<VoiceMacro> _macroRows = new();
 
     private FrameworkElement[] Pages => new FrameworkElement[]
     {
@@ -179,8 +180,13 @@ public partial class SettingsWindow : FluentWindow
                 ? s.CustomContextPrompt
                 : PromptTemplates.ContextSynthesisPrompt;
 
-            MacrosDataGrid.ItemsSource = null;
-            MacrosDataGrid.ItemsSource = s.VoiceMacros;
+            _macroRows = new System.Collections.ObjectModel.ObservableCollection<VoiceMacro>(
+                s.VoiceMacros.Select(m => new VoiceMacro { Id = m.Id, Command = m.Command, Payload = m.Payload }));
+            if (_macroRows.Count == 0)
+            {
+                _macroRows.Add(new VoiceMacro()); // one empty row so the fields are visible
+            }
+            MacrosList.ItemsSource = _macroRows;
 
             PopulateMicrophones(s.SelectedMicrophoneId);
             RefreshHistoryGrid();
@@ -353,6 +359,19 @@ public partial class SettingsWindow : FluentWindow
         }
     }
 
+    private void AddMacro_Click(object sender, RoutedEventArgs e)
+    {
+        _macroRows.Add(new VoiceMacro());
+    }
+
+    private void DeleteMacro_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is VoiceMacro macro)
+        {
+            _macroRows.Remove(macro);
+        }
+    }
+
     private void ResetSystemPrompt_Click(object sender, RoutedEventArgs e)
     {
         SystemPromptBox.Text = PromptTemplates.DefaultSystemPrompt;
@@ -409,10 +428,10 @@ public partial class SettingsWindow : FluentWindow
         var customCtx = ContextPromptBox.Text.Trim();
         s.CustomContextPrompt = (customCtx == PromptTemplates.ContextSynthesisPrompt) ? string.Empty : customCtx;
 
-        MacrosDataGrid.CommitEdit(DataGridEditingUnit.Row, true);
-        s.VoiceMacros = (MacrosDataGrid.ItemsSource as IEnumerable<VoiceMacro>)?
+        s.VoiceMacros = _macroRows
             .Where(m => !string.IsNullOrWhiteSpace(m.Command))
-            .ToList() ?? new List<VoiceMacro>();
+            .Select(m => new VoiceMacro { Id = m.Id, Command = m.Command.Trim(), Payload = m.Payload })
+            .ToList();
 
         // Persists AND swaps the live instance shared by every API service.
         await _appState.SaveSettingsAsync(s);
