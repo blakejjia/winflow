@@ -19,9 +19,24 @@ public partial class App : System.Windows.Application
     private SystemTrayManager? _trayManager;
     private SettingsWindow? _settingsWindow;
     private HttpClient? _httpClient;
+    private static Mutex? _singleInstanceMutex;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        const string mutexName = @"Global\WinFlow_SingleInstance_Mutex";
+        _singleInstanceMutex = new Mutex(true, mutexName, out bool createdNew);
+
+        if (!createdNew)
+        {
+            System.Windows.MessageBox.Show(
+                "WinFlow is already running in your system tray!\n\nPlease check the bottom-right notification area, or hold CapsLock to speak.",
+                "WinFlow Already Running",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         DispatcherUnhandledException += (s, args) =>
@@ -117,12 +132,23 @@ public partial class App : System.Windows.Application
             _settingsWindow.NavigateToRunLog();
         }
 
-        _settingsWindow.Show();
         _settingsWindow.WindowState = WindowState.Normal;
         _settingsWindow.Topmost = true;
-        _settingsWindow.Topmost = false;
+        _settingsWindow.Show();
         _settingsWindow.Activate();
         _settingsWindow.Focus();
+
+        // Release Topmost after 1 second so it pops to the front but doesn't trap the user
+        Task.Delay(1000).ContinueWith(_ =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (_settingsWindow != null && _settingsWindow.IsLoaded)
+                {
+                    _settingsWindow.Topmost = false;
+                }
+            });
+        });
     }
 
     private static void LogException(string source, Exception ex)
@@ -148,6 +174,8 @@ public partial class App : System.Windows.Application
         _settingsWindow?.Close();
         _appState?.Dispose();
         _httpClient?.Dispose();
+        try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
+        _singleInstanceMutex?.Dispose();
         Shutdown();
     }
 
@@ -157,6 +185,8 @@ public partial class App : System.Windows.Application
         _overlayWindow?.Close();
         _appState?.Dispose();
         _httpClient?.Dispose();
+        try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
+        _singleInstanceMutex?.Dispose();
         base.OnExit(e);
     }
 }
