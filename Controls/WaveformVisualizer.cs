@@ -1,15 +1,24 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Media.Animation;
-using WpfRectangle = System.Windows.Shapes.Rectangle;
+using WpfEllipse = System.Windows.Shapes.Ellipse;
 
 namespace WinFlow.Controls;
 
+/// <summary>
+/// A row of white dots that swell with the microphone level — the WhisperFlow look.
+/// At silence the dots rest small; speech makes them bloom toward the center dot.
+/// </summary>
 public class WaveformVisualizer : StackPanel
 {
-    private readonly WpfRectangle[] _bars = new WpfRectangle[5];
-    private static readonly double[] Multipliers = { 0.7, 1.0, 1.25, 0.95, 0.75 };
+    private const int DotCount = 7;
+    private const double MinSize = 4.0;
+    private const double MaxSize = 16.0;
+
+    private readonly WpfEllipse[] _dots = new WpfEllipse[DotCount];
+
+    // Center-weighted: the middle dots bloom most, edges least.
+    private static readonly double[] Multipliers = { 0.45, 0.7, 0.9, 1.0, 0.9, 0.7, 0.45 };
 
     public static readonly DependencyProperty AudioLevelProperty =
         DependencyProperty.Register(
@@ -29,21 +38,27 @@ public class WaveformVisualizer : StackPanel
         Orientation = System.Windows.Controls.Orientation.Horizontal;
         HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
         VerticalAlignment = System.Windows.VerticalAlignment.Center;
-        Height = 28;
+        Height = MaxSize + 2;
 
-        for (int i = 0; i < _bars.Length; i++)
+        for (int i = 0; i < DotCount; i++)
         {
-            _bars[i] = new WpfRectangle
+            // Fixed-size slot so growing dots don't shift their neighbors.
+            var slot = new Grid
             {
-                Width = 3,
-                Height = 4,
-                RadiusX = 1.5,
-                RadiusY = 1.5,
-                Margin = new Thickness(2, 0, 2, 0),
+                Width = MaxSize,
+                Height = MaxSize,
+                Margin = new Thickness(1, 0, 1, 0)
+            };
+            _dots[i] = new WpfEllipse
+            {
+                Width = MinSize,
+                Height = MinSize,
                 Fill = System.Windows.Media.Brushes.White,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center
             };
-            Children.Add(_bars[i]);
+            slot.Children.Add(_dots[i]);
+            Children.Add(slot);
         }
     }
 
@@ -51,47 +66,33 @@ public class WaveformVisualizer : StackPanel
     {
         if (d is WaveformVisualizer visualizer && e.NewValue is float level)
         {
-            visualizer.UpdateBars(level);
+            visualizer.UpdateDots(level);
         }
     }
 
-    /// <summary>Lets the HUD tint the bars to match its palette.</summary>
-    public void SetBarBrush(System.Windows.Media.Brush brush)
+    private void UpdateDots(float level)
     {
-        foreach (var bar in _bars)
+        // level is already perceptually shaped (AudioLevelCalculator.ShapeForDisplay).
+        for (int i = 0; i < DotCount; i++)
         {
-            bar.Fill = brush;
+            double target = MinSize + (MaxSize - MinSize) * Math.Clamp(level * Multipliers[i], 0.0, 1.0);
+            AnimateDot(_dots[i], target);
         }
     }
 
-    private void UpdateBars(float level)
+    private static void AnimateDot(WpfEllipse dot, double target)
     {
-        // level is already perceptually shaped (see AudioLevelCalculator.ShapeForDisplay).
-        double baseHeight = 4.0;
-        double maxHeight = 24.0;
+        // Snapshot the current animated size and replace the running animation so
+        // rapid buffer updates blend smoothly instead of stacking.
+        double current = dot.Width;
+        dot.BeginAnimation(WidthProperty, null);
+        dot.BeginAnimation(HeightProperty, null);
+        dot.Width = current;
+        dot.Height = current;
 
-        for (int i = 0; i < _bars.Length; i++)
-        {
-            double target = baseHeight + (maxHeight - baseHeight) * Math.Clamp(level * Multipliers[i], 0.0, 1.0);
-            AnimateBar(i, target);
-        }
-    }
-
-    private void AnimateBar(int index, double target)
-    {
-        // Snapshot the bar's CURRENT animated height and replace any running animation,
-        // so rapid buffer updates blend smoothly instead of stacking animations.
-        double current = _bars[index].Height;
-        _bars[index].BeginAnimation(HeightProperty, null);
-        _bars[index].Height = current;
-
-        var animation = new DoubleAnimation
-        {
-            From = current,
-            To = target,
-            Duration = TimeSpan.FromMilliseconds(110),
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-        };
-        _bars[index].BeginAnimation(HeightProperty, animation);
+        var duration = TimeSpan.FromMilliseconds(110);
+        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        dot.BeginAnimation(WidthProperty, new DoubleAnimation { From = current, To = target, Duration = duration, EasingFunction = easing });
+        dot.BeginAnimation(HeightProperty, new DoubleAnimation { From = current, To = target, Duration = duration, EasingFunction = easing });
     }
 }

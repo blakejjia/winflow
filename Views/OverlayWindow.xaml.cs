@@ -1,39 +1,24 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Threading;
 using WinFlow.Core.Pipeline;
 
 namespace WinFlow.Views;
 
 /// <summary>
-/// Minimal black-pill HUD: white waveform, white text, no glow or shadow.
-/// Everything outside the pill is fully transparent and click-through.
-/// The look is intentionally fixed (black/white) regardless of app theme.
+/// WhisperFlow-style HUD: a bare black capsule that hugs its content, showing only
+/// white waveform dots while recording and a small spinner while transcribing.
+/// No labels, no timer, no glow — everything outside the capsule is fully transparent.
 /// </summary>
 public partial class OverlayWindow : Window
 {
     private readonly AppState _appState;
-    private readonly DispatcherTimer _timer;
-    private DateTime _recordingStartTime;
-    private Storyboard? _spinnerStoryboard;
 
     public OverlayWindow(AppState appState)
     {
         InitializeComponent();
         _appState = appState;
-
-        _timer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(1)
-        };
-        _timer.Tick += (s, e) =>
-        {
-            var elapsed = DateTime.Now - _recordingStartTime;
-            TimerText.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
-        };
 
         _appState.PhaseChanged += OnPhaseChanged;
         _appState.AudioLevelChanged += OnAudioLevelChanged;
@@ -41,6 +26,7 @@ public partial class OverlayWindow : Window
         _appState.NoticeRaised += OnNoticeRaised;
 
         Loaded += OnLoaded;
+        SizeChanged += (_, _) => CenterAtTop();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -64,7 +50,7 @@ public partial class OverlayWindow : Window
     public void CenterAtTop()
     {
         var screenWidth = SystemParameters.PrimaryScreenWidth;
-        Left = (screenWidth - Width) / 2;
+        Left = (screenWidth - ActualWidth) / 2;
         Top = 28;
     }
 
@@ -78,46 +64,38 @@ public partial class OverlayWindow : Window
             {
                 ElevatedBadge.Visibility = Visibility.Collapsed;
             }
-            RecordingPanel.Visibility = Visibility.Collapsed;
+            Waveform.Visibility = Visibility.Collapsed;
             TranscribingPanel.Visibility = Visibility.Collapsed;
             FeedbackPanel.Visibility = Visibility.Collapsed;
             ErrorPanel.Visibility = Visibility.Collapsed;
-
-            StopAnimations();
+            StopSpinner();
 
             switch (phase)
             {
                 case PipelinePhase.Recording:
-                    _recordingStartTime = DateTime.Now;
-                    TimerText.Text = "0:00";
-                    _timer.Start();
-                    RecordingPanel.Visibility = Visibility.Visible;
-                    CenterAtTop();
+                    Waveform.AudioLevel = 0;
+                    Waveform.Visibility = Visibility.Visible;
                     ShowWithSlide();
                     break;
 
                 case PipelinePhase.Transcribing:
-                    _timer.Stop();
                     TranscribingPanel.Visibility = Visibility.Visible;
                     Show();
                     StartSpinner();
                     break;
 
                 case PipelinePhase.Feedback:
-                    _timer.Stop();
                     FeedbackPanel.Visibility = Visibility.Visible;
                     Show();
                     break;
 
                 case PipelinePhase.Error:
-                    _timer.Stop();
                     ErrorPanel.Visibility = Visibility.Visible;
                     Show();
                     break;
 
                 case PipelinePhase.Idle:
                 default:
-                    _timer.Stop();
                     Hide();
                     break;
             }
@@ -127,6 +105,7 @@ public partial class OverlayWindow : Window
     private void ShowWithSlide()
     {
         Show();
+        CenterAtTop();
         var slide = new DoubleAnimation
         {
             From = -10,
@@ -140,9 +119,11 @@ public partial class OverlayWindow : Window
             To = 1,
             Duration = TimeSpan.FromMilliseconds(160)
         };
-        PillTransform.BeginAnimation(TranslateTransform.YProperty, slide);
+        PillTransform.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, slide);
         PillBorder.BeginAnimation(OpacityProperty, fade);
     }
+
+    private System.Windows.Media.Animation.Storyboard? _spinnerStoryboard;
 
     private void StartSpinner()
     {
@@ -153,14 +134,14 @@ public partial class OverlayWindow : Window
             Duration = TimeSpan.FromMilliseconds(900),
             RepeatBehavior = RepeatBehavior.Forever
         };
-        _spinnerStoryboard = new Storyboard();
+        _spinnerStoryboard = new System.Windows.Media.Animation.Storyboard();
         _spinnerStoryboard.Children.Add(rotate);
-        Storyboard.SetTarget(rotate, SpinnerArc);
-        Storyboard.SetTargetProperty(rotate, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+        System.Windows.Media.Animation.Storyboard.SetTarget(rotate, SpinnerArc);
+        System.Windows.Media.Animation.Storyboard.SetTargetProperty(rotate, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
         _spinnerStoryboard.Begin();
     }
 
-    private void StopAnimations()
+    private void StopSpinner()
     {
         _spinnerStoryboard?.Stop();
         _spinnerStoryboard = null;
@@ -195,8 +176,7 @@ public partial class OverlayWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        _timer.Stop();
-        StopAnimations();
+        StopSpinner();
         _appState.PhaseChanged -= OnPhaseChanged;
         _appState.AudioLevelChanged -= OnAudioLevelChanged;
         _appState.ErrorOccurred -= OnErrorOccurred;

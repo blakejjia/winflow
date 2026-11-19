@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:WinFlow.Controls"
         Title="WinFlow HUD"
-        Width="300" Height="72"
+        SizeToContent="WidthAndHeight"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -13,108 +13,66 @@
         ShowActivated="False"
         Focusable="False">
 
-    <!-- Everything outside the black pill is fully transparent: no shadow, no glow. -->
-    <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-        <Border x:Name="PillBorder"
-                Background="#FF000000"
-                CornerRadius="20"
-                Padding="18,8">
-            <Border.RenderTransform>
-                <TranslateTransform x:Name="PillTransform" Y="0"/>
-            </Border.RenderTransform>
+    <!-- The window hugs the pill (SizeToContent): there is no surrounding area at all.
+         No shadow, no border, no glow — just the black capsule. -->
+    <Border x:Name="PillBorder"
+            Background="#FF000000"
+            CornerRadius="18"
+            Padding="16,10"
+            Margin="0,0,0,0">
+        <Border.RenderTransform>
+            <TranslateTransform x:Name="PillTransform" Y="0"/>
+        </Border.RenderTransform>
 
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <!-- Elevated Target Advisory -->
-                <TextBlock x:Name="ElevatedBadge"
-                           Visibility="Collapsed"
-                           Text="🛡 Elevated window — run WinFlow as admin to paste here"
-                           Foreground="#FFFFD60A"
-                           FontSize="10"
-                           FontWeight="SemiBold"
-                           HorizontalAlignment="Center"
-                           Margin="0,0,0,5"/>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+            <!-- Elevated Target Advisory (safety guidance, shown only when needed) -->
+            <TextBlock x:Name="ElevatedBadge"
+                       Visibility="Collapsed"
+                       Text="🛡 Elevated window — run WinFlow as admin to paste here"
+                       Foreground="#FFFFD60A"
+                       FontSize="10"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,5"/>
 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <!-- Recording: plain white dot + white waveform -->
-                    <Grid x:Name="RecordingPanel" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="7" Height="7" Fill="#FFFFFFFF" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                            <controls:WaveformVisualizer x:Name="Waveform" Margin="0,0,12,0"/>
-                            <TextBlock x:Name="TimerText"
-                                       Text="0:00"
-                                       Foreground="#B3FFFFFF"
-                                       FontSize="12"
-                                       FontFamily="Segoe UI Variable Text, Segoe UI"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,10,0"/>
-                            <TextBlock Text="Listening"
-                                       Foreground="#FFFFFFFF"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       FontFamily="Segoe UI Variable Text, Segoe UI"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Grid>
+            <!-- Recording: white waveform dots only, like WhisperFlow -->
+            <controls:WaveformVisualizer x:Name="Waveform" Visibility="Collapsed"/>
 
-                    <!-- Transcribing -->
-                    <Grid x:Name="TranscribingPanel" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Grid Width="16" Height="16" Margin="0,0,10,0">
-                                <Ellipse Width="16" Height="16"
-                                         Stroke="#4DFFFFFF" StrokeThickness="2"/>
-                                <Path x:Name="SpinnerArc" Width="16" Height="16"
-                                      Stroke="#FFFFFFFF" StrokeThickness="2"
-                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                      Data="M 8,1 A 7,7 0 0 1 15,8"
-                                      RenderTransformOrigin="0.5,0.5">
-                                    <Path.RenderTransform>
-                                        <RotateTransform x:Name="SpinnerRotation"/>
-                                    </Path.RenderTransform>
-                                </Path>
-                            </Grid>
-                            <TextBlock Text="Writing it down…"
-                                       Foreground="#FFFFFFFF"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       FontFamily="Segoe UI Variable Text, Segoe UI"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Grid>
+            <!-- Transcribing: small white spinner only -->
+            <Grid x:Name="TranscribingPanel" Visibility="Collapsed" Width="18" Height="18" HorizontalAlignment="Center">
+                <Ellipse Width="18" Height="18" Stroke="#4DFFFFFF" StrokeThickness="2"/>
+                <Path x:Name="SpinnerArc" Width="18" Height="18"
+                      Stroke="#FFFFFFFF" StrokeThickness="2"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M 9,1 A 8,8 0 0 1 17,9"
+                      RenderTransformOrigin="0.5,0.5">
+                    <Path.RenderTransform>
+                        <RotateTransform x:Name="SpinnerRotation"/>
+                    </Path.RenderTransform>
+                </Path>
+            </Grid>
 
-                    <!-- Feedback -->
-                    <Grid x:Name="FeedbackPanel" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="✓"
-                                       Foreground="#FFFFFFFF"
-                                       FontSize="14" FontWeight="Bold"
-                                       Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="Pasted"
-                                       Foreground="#FFFFFFFF"
-                                       FontSize="12" FontWeight="SemiBold"
-                                       FontFamily="Segoe UI Variable Text, Segoe UI"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Grid>
+            <!-- Feedback: a lone check -->
+            <TextBlock x:Name="FeedbackPanel" Visibility="Collapsed"
+                       Text="✓" Foreground="#FFFFFFFF"
+                       FontSize="14" FontWeight="Bold"
+                       HorizontalAlignment="Center"/>
 
-                    <!-- Error -->
-                    <Grid x:Name="ErrorPanel" Visibility="Collapsed">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="!"
-                                       Foreground="#FFFF6B6B"
-                                       FontSize="14" FontWeight="Bold"
-                                       Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="ErrorText"
-                                       Text="Something went wrong"
-                                       Foreground="#FFFFFFFF"
-                                       FontSize="11"
-                                       FontFamily="Segoe UI Variable Text, Segoe UI"
-                                       MaxWidth="240"
-                                       TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
+            <!-- Error: brief message (the only state that needs words) -->
+            <StackPanel x:Name="ErrorPanel" Visibility="Collapsed" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="!"
+                           Foreground="#FFFF6B6B"
+                           FontSize="14" FontWeight="Bold"
+                           Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="ErrorText"
+                           Text="Something went wrong"
+                           Foreground="#FFFFFFFF"
+                           FontSize="11"
+                           FontFamily="Segoe UI Variable Text, Segoe UI"
+                           MaxWidth="240"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"/>
             </StackPanel>
-        </Border>
-    </Grid>
+        </StackPanel>
+    </Border>
 </Window>
