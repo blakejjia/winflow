@@ -7,6 +7,7 @@ using WinFlow.Audio;
 using WinFlow.Core.Models;
 using WinFlow.Core.Pipeline;
 using WinFlow.Core.Prompts;
+using Wpf.Ui;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -22,6 +23,12 @@ public partial class SettingsWindow : FluentWindow
     private readonly HttpClient _httpClient;
     private string _currentApiKey = string.Empty;
     private bool _allowClose;
+    private bool _loadingSettings;
+
+    private FrameworkElement[] Pages => new FrameworkElement[]
+    {
+        PageGeneral, PageModels, PageShortcuts, PageVocabulary, PageMacros, PagePrompts, PageRunLog
+    };
 
     public SettingsWindow(AppState appState, HttpClient httpClient)
     {
@@ -29,6 +36,7 @@ public partial class SettingsWindow : FluentWindow
         _appState = appState;
         _httpClient = httpClient;
         Loaded += OnWindowLoaded;
+        SystemThemeWatcher.Watch(this);
     }
 
     /// <summary>Called by the app shutdown path so the window can actually close.</summary>
@@ -55,62 +63,107 @@ public partial class SettingsWindow : FluentWindow
         LoadSettingsIntoUi();
     }
 
+    private void RootNavigation_ItemInvoked(NavigationView sender, RoutedEventArgs args)
+    {
+        if (args.OriginalSource is not NavigationViewItem item || item.Tag is not string tag)
+            return;
+
+        ShowPage(tag);
+    }
+
+    private void ShowPage(string tag)
+    {
+        foreach (var page in Pages)
+        {
+            page.Visibility = page.Name == $"Page{tag}" ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (tag == "RunLog")
+        {
+            RefreshHistoryGrid();
+        }
+    }
+
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ThemeComboBox == null) return;
-        switch (ThemeComboBox.SelectedIndex)
+        if (ThemeComboBox == null || _loadingSettings) return;
+
+        var theme = ThemeComboBox.SelectedIndex switch
         {
-            case 0:
+            1 => "Dark",
+            2 => "Light",
+            _ => "System"
+        };
+
+        _appState.Settings.Theme = theme;
+        ApplyTheme(theme);
+    }
+
+    internal static void ApplyTheme(string theme)
+    {
+        switch (theme)
+        {
+            case "Dark":
+                ApplicationThemeManager.Apply(ApplicationTheme.Dark, WindowBackdropType.Mica, updateAccent: true);
+                break;
+            case "Light":
+                ApplicationThemeManager.Apply(ApplicationTheme.Light, WindowBackdropType.Mica, updateAccent: true);
+                break;
+            default:
                 ApplicationThemeManager.ApplySystemTheme();
-                break;
-            case 1:
-                ApplicationThemeManager.Apply(ApplicationTheme.Dark);
-                break;
-            case 2:
-                ApplicationThemeManager.Apply(ApplicationTheme.Light);
                 break;
         }
     }
 
     private void LoadSettingsIntoUi()
     {
-        var s = _appState.Settings;
+        _loadingSettings = true;
+        try
+        {
+            var s = _appState.Settings;
 
-        _currentApiKey = s.GroqApiKey;
-        ApiKeyBox.Password = s.GroqApiKey;
-        BaseUrlBox.Text = s.ApiBaseUrl;
-        LanguageBox.Text = s.TranscriptionLanguage;
-        PressEnterCheckBox.IsChecked = s.PressEnterAfterDictation;
-        PreserveClipboardCheckBox.IsChecked = s.PreserveClipboard;
-        ContextCaptureCheckBox.IsChecked = s.ContextCaptureEnabled;
+            _currentApiKey = s.GroqApiKey;
+            ApiKeyBox.Password = s.GroqApiKey;
+            BaseUrlBox.Text = s.ApiBaseUrl;
+            LanguageBox.Text = s.TranscriptionLanguage;
+            PressEnterCheckBox.IsChecked = s.PressEnterAfterDictation;
+            PreserveClipboardCheckBox.IsChecked = s.PreserveClipboard;
+            ContextCaptureCheckBox.IsChecked = s.ContextCaptureEnabled;
 
-        TranscriptionModelBox.Text = s.TranscriptionModel;
-        PostProcessingModelBox.Text = s.PostProcessingModel;
-        FallbackModelBox.Text = s.PostProcessingFallbackModel;
-        ContextModelBox.Text = s.ContextModel;
+            ThemeComboBox.SelectedIndex = s.Theme switch { "Dark" => 1, "Light" => 2, _ => 0 };
 
-        DoubleTapCheckBox.IsChecked = s.DoubleTapLockEnabled;
-        VocabularyBox.Text = s.CustomVocabulary;
+            TranscriptionModelBox.Text = s.TranscriptionModel;
+            PostProcessingModelBox.Text = s.PostProcessingModel;
+            FallbackModelBox.Text = s.PostProcessingFallbackModel;
+            ContextModelBox.Text = s.ContextModel;
 
-        SystemPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomSystemPrompt)
-            ? s.CustomSystemPrompt
-            : PromptTemplates.DefaultSystemPrompt;
+            DoubleTapCheckBox.IsChecked = s.DoubleTapLockEnabled;
+            VocabularyBox.Text = s.CustomVocabulary;
 
-        ContextPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomContextPrompt)
-            ? s.CustomContextPrompt
-            : PromptTemplates.ContextSynthesisPrompt;
+            SystemPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomSystemPrompt)
+                ? s.CustomSystemPrompt
+                : PromptTemplates.DefaultSystemPrompt;
 
-        MacrosDataGrid.ItemsSource = null;
-        MacrosDataGrid.ItemsSource = s.VoiceMacros;
+            ContextPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomContextPrompt)
+                ? s.CustomContextPrompt
+                : PromptTemplates.ContextSynthesisPrompt;
 
-        PopulateMicrophones(s.SelectedMicrophoneId);
-        RefreshHistoryGrid();
+            MacrosDataGrid.ItemsSource = null;
+            MacrosDataGrid.ItemsSource = s.VoiceMacros;
+
+            PopulateMicrophones(s.SelectedMicrophoneId);
+            RefreshHistoryGrid();
+        }
+        finally
+        {
+            _loadingSettings = false;
+        }
     }
 
     private void PopulateMicrophones(string selectedId)
     {
         MicComboBox.Items.Clear();
-        MicComboBox.Items.Add(new ComboBoxItem { Content = "Default System Microphone", Tag = "" });
+        MicComboBox.Items.Add(new ComboBoxItem { Content = "Default microphone", Tag = "" });
 
         try
         {
@@ -148,7 +201,7 @@ public partial class SettingsWindow : FluentWindow
         var key = _currentApiKey.Trim();
         if (string.IsNullOrWhiteSpace(key))
         {
-            System.Windows.MessageBox.Show("Please enter an API key first.", "Test API Key", System.Windows.MessageBoxButton.OK, MessageBoxImage.Warning);
+            ShowSnackbar("Add your API key first", "Paste a Groq key above, then test the connection.", ControlAppearance.Caution, SymbolRegular.Key24);
             return;
         }
 
@@ -162,17 +215,20 @@ public partial class SettingsWindow : FluentWindow
             var response = await _httpClient.SendAsync(request, cts.Token);
             if (response.IsSuccessStatusCode)
             {
-                System.Windows.MessageBox.Show("API key and endpoint successfully verified! Connection succeeded.", "Success", System.Windows.MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowSnackbar("Connected", "The key and endpoint work. You're ready to dictate.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
             }
             else
             {
-                var body = await response.Content.ReadAsStringAsync(cts.Token);
-                System.Windows.MessageBox.Show($"Verification failed with HTTP {response.StatusCode}:\n{body}", "Verification Failed", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowSnackbar($"Connection failed ({(int)response.StatusCode})",
+                    response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                        ? "The endpoint rejected this key. Check for typos or an expired key."
+                        : "The endpoint answered with an error. Check the base URL.",
+                    ControlAppearance.Danger, SymbolRegular.DismissCircle24);
             }
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Connection failed: {ex.Message}", "Connection Error", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowSnackbar("Couldn't reach the endpoint", ex.Message, ControlAppearance.Danger, SymbolRegular.DismissCircle24);
         }
     }
 
@@ -188,8 +244,13 @@ public partial class SettingsWindow : FluentWindow
 
     public void NavigateToRunLog()
     {
-        SettingsTabs.SelectedItem = RunLogTab;
-        RefreshHistoryGrid();
+        RootNavigation.Navigate("RunLog");
+        foreach (var item in new[] { NavGeneral, NavModels, NavShortcuts, NavVocabulary, NavMacros, NavPrompts })
+        {
+            item.IsActive = false;
+        }
+        NavRunLog.IsActive = true;
+        ShowPage("RunLog");
     }
 
     private void RefreshHistory_Click(object sender, RoutedEventArgs e)
@@ -199,8 +260,10 @@ public partial class SettingsWindow : FluentWindow
 
     private void RefreshHistoryGrid()
     {
+        var history = _appState.History;
         HistoryDataGrid.ItemsSource = null;
-        HistoryDataGrid.ItemsSource = _appState.History;
+        HistoryDataGrid.ItemsSource = history;
+        RunLogEmpty.Visibility = history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -240,8 +303,19 @@ public partial class SettingsWindow : FluentWindow
         await _appState.SaveSettingsAsync(s);
         _appState.ApplyShortcutSettings();
 
-        StatusMessage.Text = "Settings saved successfully!";
-        await Task.Delay(2000);
-        StatusMessage.Text = string.Empty;
+        ShowSnackbar("Saved", "Changes apply to your next dictation — no restart needed.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
+    }
+
+    private void ShowSnackbar(string title, string message, ControlAppearance appearance, SymbolRegular icon)
+    {
+        var snackbar = new Snackbar(SnackbarPresenter)
+        {
+            Title = title,
+            Content = message,
+            Appearance = appearance,
+            Icon = new SymbolIcon(icon),
+            Timeout = TimeSpan.FromSeconds(4)
+        };
+        snackbar.Show();
     }
 }

@@ -13,6 +13,9 @@ public class AppSettings
     public string ContextModel { get; set; } = "qwen/qwen3.8-27b";
 
     public string TriggerKey { get; set; } = "CapsLock";
+
+    /// <summary>"System", "Dark", or "Light".</summary>
+    public string Theme { get; set; } = "System";
     public bool DoubleTapLockEnabled { get; set; } = true;
     public bool PreserveClipboard { get; set; } = true;
     public bool PressEnterAfterDictation { get; set; } = false;

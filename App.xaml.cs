@@ -60,15 +60,6 @@ public partial class App : System.Windows.Application
             args.SetObserved();
         };
 
-        try
-        {
-            Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[WinFlow] Theme initialization failed: {ex.Message}");
-        }
-
         // Composition root: one pipeline for the whole app lifetime, independent of any window.
         // The settings provider is shared by AppState and every API service, so saving
         // settings takes effect immediately with no stale second instance.
@@ -95,6 +86,15 @@ public partial class App : System.Windows.Application
         try
         {
             await _appState!.InitializeAsync();
+
+            try
+            {
+                Views.SettingsWindow.ApplyTheme(_appState.Settings.Theme);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[WinFlow] Theme initialization failed: {ex.Message}");
+            }
 
             _overlayWindow = new OverlayWindow(_appState);
             _trayManager = new SystemTrayManager(_appState);

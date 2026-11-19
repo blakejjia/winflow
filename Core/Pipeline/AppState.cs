@@ -284,7 +284,7 @@ public class AppState : IDisposable
                     // LLM cleanup needs a key; macros above intentionally work offline.
                     if (string.IsNullOrWhiteSpace(Settings.GroqApiKey))
                     {
-                        HandleError("No API key configured. Open Settings and add your Groq API key.", generation);
+                        HandleError("No API key yet — add one in Settings to start dictating.", generation);
                         return;
                     }
 
@@ -329,7 +329,7 @@ public class AppState : IDisposable
                 bool injected = await _textInjector.InjectTextAsync(cleanedText, pressEnterAfter);
                 if (!injected)
                 {
-                    HandleError("Could not access the clipboard to paste. Text kept in Run Log.", generation);
+                    HandleError("Couldn't paste — your words are safe in the run log.", generation);
                     return;
                 }
 

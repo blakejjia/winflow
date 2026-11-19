@@ -54,16 +54,38 @@ public class WaveformVisualizer : StackPanel
         }
     }
 
+    /// <summary>Lets the HUD tint the bars to match its light/dark palette.</summary>
+    public void SetBarBrush(System.Windows.Media.Brush brush)
+    {
+        foreach (var bar in _bars)
+        {
+            bar.Fill = brush;
+        }
+    }
+
     private void UpdateBars(float level)
     {
-        // level is 0.0 to 1.0
+        // level is 0.0 to 1.0. Ease each bar toward its target so the meter feels
+        // like a living thing rather than a jumping equalizer.
         double baseHeight = 5.0;
         double maxHeight = 24.0;
 
         for (int i = 0; i < _bars.Length; i++)
         {
             double target = baseHeight + (maxHeight - baseHeight) * Math.Clamp(level * Multipliers[i] * 2.5, 0.0, 1.0);
-            _bars[i].Height = target;
+
+            // Animate from wherever the previous animation currently is, so successive
+            // buffer updates blend instead of snapping.
+            var animation = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                To = target,
+                Duration = TimeSpan.FromMilliseconds(120),
+                EasingFunction = new System.Windows.Media.Animation.QuadraticEase
+                {
+                    EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut
+                }
+            };
+            _bars[i].BeginAnimation(HeightProperty, animation, System.Windows.Media.Animation.HandoffBehavior.Compose);
         }
     }
 }

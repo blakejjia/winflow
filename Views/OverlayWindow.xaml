@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:WinFlow.Controls"
         Title="WinFlow HUD"
-        Width="280" Height="64"
+        Width="300" Height="76"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -14,89 +14,113 @@
         Focusable="False">
 
     <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-        <!-- Floating Pill Capsule -->
-        <Border Background="#E6181818"
-                BorderBrush="#33FFFFFF"
+        <Border x:Name="PillBorder"
+                Background="{DynamicResource HudBackgroundBrush}"
+                BorderBrush="{DynamicResource HudBorderBrush}"
                 BorderThickness="1"
-                CornerRadius="24"
-                Padding="16,6"
-                Effect="{DynamicResource ShadowEffect}">
-            <Border.Resources>
-                <DropShadowEffect x:Key="ShadowEffect"
-                                  BlurRadius="16"
-                                  ShadowDepth="3"
-                                  Opacity="0.45"
-                                  Color="Black" />
-            </Border.Resources>
+                CornerRadius="22"
+                Padding="18,8">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="18" ShadowDepth="2" Opacity="0.35" Color="Black"/>
+            </Border.Effect>
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="PillTransform" Y="0"/>
+            </Border.RenderTransform>
 
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <!-- Elevated Target Advisory Badge -->
+                <!-- Elevated Target Advisory -->
                 <TextBlock x:Name="ElevatedBadge"
                            Visibility="Collapsed"
-                           Text="🛡 Target is elevated — run WinFlow as Admin"
-                           Foreground="#FFFFD60A"
+                           Text="🛡 Elevated window — run WinFlow as admin to paste here"
+                           Foreground="{DynamicResource HudCautionBrush}"
                            FontSize="10"
                            FontWeight="SemiBold"
                            HorizontalAlignment="Center"
-                           Margin="0,0,0,4"/>
+                           Margin="0,0,0,5"/>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-                <!-- Recording State Indicator -->
-                <Grid x:Name="RecordingPanel" Visibility="Visible">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- Glowing Red Dot -->
-                        <Ellipse Width="10" Height="10" Fill="#FFFF3B30" Margin="0,0,10,0">
-                            <Ellipse.Effect>
-                                <DropShadowEffect Color="#FFFF3B30" BlurRadius="8" ShadowDepth="0" Opacity="0.8"/>
-                            </Ellipse.Effect>
-                        </Ellipse>
+                    <!-- Recording -->
+                    <Grid x:Name="RecordingPanel" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="14" Height="14" Margin="0,0,10,0">
+                                <Ellipse x:Name="RecordingHalo" Width="14" Height="14"
+                                         Fill="{DynamicResource HudRecordingBrush}" Opacity="0.35"/>
+                                <Ellipse Width="8" Height="8" Fill="{DynamicResource HudRecordingBrush}"/>
+                            </Grid>
+                            <controls:WaveformVisualizer x:Name="Waveform" Margin="0,0,12,0"/>
+                            <TextBlock x:Name="TimerText"
+                                       Text="0:00"
+                                       Foreground="{DynamicResource HudTextSecondaryBrush}"
+                                       FontSize="12"
+                                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"/>
+                            <TextBlock Text="Listening"
+                                       Foreground="{DynamicResource HudTextBrush}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
 
-                        <!-- Audio Waveform Visualizer -->
-                        <controls:WaveformVisualizer x:Name="Waveform" Margin="0,0,10,0" />
+                    <!-- Transcribing -->
+                    <Grid x:Name="TranscribingPanel" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="16" Height="16" Margin="0,0,10,0">
+                                <Ellipse x:Name="SpinnerTrack" Width="16" Height="16"
+                                         Stroke="{DynamicResource HudTextSecondaryBrush}" StrokeThickness="2" Opacity="0.3"/>
+                                <Path x:Name="SpinnerArc" Width="16" Height="16"
+                                      Stroke="{DynamicResource HudAccentBrush}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      Data="M 8,1 A 7,7 0 0 1 15,8"
+                                      RenderTransformOrigin="0.5,0.5">
+                                    <Path.RenderTransform>
+                                        <RotateTransform x:Name="SpinnerRotation"/>
+                                    </Path.RenderTransform>
+                                </Path>
+                            </Grid>
+                            <TextBlock Text="Writing it down…"
+                                       Foreground="{DynamicResource HudTextBrush}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
 
-                        <!-- Recording Timer -->
-                        <TextBlock x:Name="TimerText"
-                                   Text="00:00"
-                                   Foreground="#F0FFFFFF"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Grid>
+                    <!-- Feedback -->
+                    <Grid x:Name="FeedbackPanel" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="✓"
+                                       Foreground="{DynamicResource HudSuccessBrush}"
+                                       FontSize="14" FontWeight="Bold"
+                                       Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Pasted"
+                                       Foreground="{DynamicResource HudTextBrush}"
+                                       FontSize="12" FontWeight="SemiBold"
+                                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
 
-                <!-- Transcribing State -->
-                <Grid x:Name="TranscribingPanel" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="✦ Transcribing..."
-                                   Foreground="#FF0A84FF"
-                                   FontSize="13"
-                                   FontWeight="Medium"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Grid>
-
-                <!-- Feedback State -->
-                <Grid x:Name="FeedbackPanel" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="✓ Done"
-                                   Foreground="#FF34C759"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Grid>
-
-                <!-- Error State -->
-                <Grid x:Name="ErrorPanel" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="ErrorText"
-                                   Text="⚠️ Error"
-                                   Foreground="#FFFF453A"
-                                   FontSize="12"
-                                   FontWeight="Medium"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Grid>
+                    <!-- Error -->
+                    <Grid x:Name="ErrorPanel" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="!"
+                                       Foreground="{DynamicResource HudErrorBrush}"
+                                       FontSize="14" FontWeight="Bold"
+                                       Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ErrorText"
+                                       Text="Something went wrong"
+                                       Foreground="{DynamicResource HudTextBrush}"
+                                       FontSize="11"
+                                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                                       MaxWidth="240"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
             </StackPanel>
         </Border>

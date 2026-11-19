@@ -25,26 +25,26 @@ public class SystemTrayManager : IDisposable
 
         _notifyIcon = new NotifyIcon
         {
-            Text = "WinFlow - Context-Aware Voice Dictation",
+            Text = "WinFlow — hold CapsLock to speak",
             Icon = _icon,
             Visible = true
         };
 
         var menu = new ContextMenuStrip();
 
-        var titleItem = new ToolStripMenuItem("WinFlow (CapsLock to dict)") { Enabled = false };
+        var titleItem = new ToolStripMenuItem("WinFlow — hold CapsLock to speak") { Enabled = false };
         menu.Items.Add(titleItem);
         menu.Items.Add(new ToolStripSeparator());
 
-        var settingsItem = new ToolStripMenuItem("⚙ Settings...", null, (s, e) => OpenSettingsRequested?.Invoke());
+        var settingsItem = new ToolStripMenuItem("Settings", null, (s, e) => OpenSettingsRequested?.Invoke());
         menu.Items.Add(settingsItem);
 
-        var runLogItem = new ToolStripMenuItem("📋 Pipeline Run Log...", null, (s, e) => OpenRunLogRequested?.Invoke());
+        var runLogItem = new ToolStripMenuItem("Run log", null, (s, e) => OpenRunLogRequested?.Invoke());
         menu.Items.Add(runLogItem);
 
         menu.Items.Add(new ToolStripSeparator());
 
-        var exitItem = new ToolStripMenuItem("Exit WinFlow", null, (s, e) => ExitRequested?.Invoke());
+        var exitItem = new ToolStripMenuItem("Quit WinFlow", null, (s, e) => ExitRequested?.Invoke());
         menu.Items.Add(exitItem);
 
         _notifyIcon.ContextMenuStrip = menu;
@@ -103,9 +103,9 @@ public class SystemTrayManager : IDisposable
     {
         _notifyIcon.Text = phase switch
         {
-            PipelinePhase.Recording => "WinFlow - Recording...",
-            PipelinePhase.Transcribing => "WinFlow - Transcribing...",
-            _ => "WinFlow - Idle (Hold CapsLock to speak)"
+            PipelinePhase.Recording => "WinFlow — listening…",
+            PipelinePhase.Transcribing => "WinFlow — writing it down…",
+            _ => "WinFlow — hold CapsLock to speak"
         };
     }
 
