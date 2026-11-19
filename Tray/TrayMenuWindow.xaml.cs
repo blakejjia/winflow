@@ -40,7 +40,12 @@ public partial class TrayMenuWindow : Window
         StatusHeader.Text = text;
     }
 
-    /// <summary>Shows the menu with its bottom-right corner near the tray click point.</summary>
+    /// <summary>
+    /// Shows the menu with its bottom-right corner at the tray click point.
+    /// All math happens in PHYSICAL pixels: GetCursorPos returns physical pixels,
+    /// while WPF Left/Top/ActualWidth are DIPs — mixing them at >100% display scale
+    /// pushed the menu to the far corner. Convert once, clamp, convert back.
+    /// </summary>
     public void ShowAtCursor()
     {
         // Measure off-screen first so placement uses the final size.
@@ -49,17 +54,39 @@ public partial class TrayMenuWindow : Window
         Show();
         UpdateLayout();
 
-        GetCursorPos(out var pt);
-        var workArea = SystemParameters.WorkArea;
+        var source = PresentationSource.FromVisual(this);
+        double dpiX = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+        double dpiY = source?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
 
-        double left = pt.X - ActualWidth + 8;
-        double top = pt.Y - ActualHeight - 8;
+        GetCursorPos(out var pt); // physical pixels
 
-        left = Math.Max(workArea.Left + 8, Math.Min(left, workArea.Right - ActualWidth - 8));
-        top = Math.Max(workArea.Top + 8, Math.Min(top, workArea.Bottom - ActualHeight - 8));
+        double menuW = ActualWidth * dpiX;
+        double menuH = ActualHeight * dpiY;
 
-        Left = left;
-        Top = top;
+        // Work area of the monitor under the cursor, in physical pixels.
+        var monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+        var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        Rect workPhys;
+        if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref mi))
+        {
+            workPhys = new Rect(mi.rcWork.Left, mi.rcWork.Top,
+                mi.rcWork.Right - mi.rcWork.Left, mi.rcWork.Bottom - mi.rcWork.Top);
+        }
+        else
+        {
+            var wa = SystemParameters.WorkArea; // DIP fallback
+            workPhys = new Rect(wa.Left * dpiX, wa.Top * dpiY, wa.Width * dpiX, wa.Height * dpiY);
+        }
+
+        const double margin = 8; // physical px
+        double leftPhys = pt.X - menuW + margin;
+        double topPhys = pt.Y - menuH - margin;
+
+        leftPhys = Math.Max(workPhys.Left + margin, Math.Min(leftPhys, workPhys.Right - menuW - margin));
+        topPhys = Math.Max(workPhys.Top + margin, Math.Min(topPhys, workPhys.Bottom - menuH - margin));
+
+        Left = leftPhys / dpiX;
+        Top = topPhys / dpiY;
         Activate(); // needed so Deactivated fires when the user clicks elsewhere
         // Tray menus must claim foreground or the first outside click won't dismiss them.
         SetForegroundWindow(new WindowInteropHelper(this).Handle);
@@ -138,6 +165,33 @@ public partial class TrayMenuWindow : Window
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out POINT lpPoint);
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
