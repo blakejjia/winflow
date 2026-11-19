@@ -71,11 +71,35 @@ public partial class SettingsWindow : FluentWindow
         ShowPage(tag);
     }
 
+    /// <summary>
+    /// NavigationViewItem.OnClick only notifies the parent NavigationView when
+    /// TargetPageType is set; these items host in-place panels instead of pages,
+    /// so ItemInvoked never fires for them. Handle Click directly.
+    /// </summary>
+    private void NavItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is NavigationViewItem item && item.Tag is string tag)
+        {
+            ShowPage(tag);
+        }
+    }
+
+    private NavigationViewItem[] NavItems => new[]
+    {
+        NavGeneral, NavModels, NavShortcuts, NavVocabulary, NavMacros, NavPrompts, NavRunLog
+    };
+
     private void ShowPage(string tag)
     {
         foreach (var page in Pages)
         {
             page.Visibility = page.Name == $"Page{tag}" ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // Without TargetPageType the NavigationView never updates selection itself.
+        foreach (var item in NavItems)
+        {
+            item.IsActive = Equals(item.Tag, tag);
         }
 
         if (tag == "RunLog")
@@ -244,12 +268,6 @@ public partial class SettingsWindow : FluentWindow
 
     public void NavigateToRunLog()
     {
-        RootNavigation.Navigate("RunLog");
-        foreach (var item in new[] { NavGeneral, NavModels, NavShortcuts, NavVocabulary, NavMacros, NavPrompts })
-        {
-            item.IsActive = false;
-        }
-        NavRunLog.IsActive = true;
         ShowPage("RunLog");
     }
 

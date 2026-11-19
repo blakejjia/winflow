@@ -12,6 +12,8 @@ public class SystemTrayManager : IDisposable
     private readonly Icon _icon;
     private readonly IntPtr _hIcon;
     private readonly SynchronizationContext? _uiContext;
+    private TrayMenuWindow? _menuWindow;
+    private string _statusText = "WinFlow — hold CapsLock to speak";
 
     public event Action? OpenSettingsRequested;
     public event Action? OpenRunLogRequested;
@@ -30,24 +32,15 @@ public class SystemTrayManager : IDisposable
             Visible = true
         };
 
-        var menu = new ContextMenuStrip();
-
-        var titleItem = new ToolStripMenuItem("WinFlow — hold CapsLock to speak") { Enabled = false };
-        menu.Items.Add(titleItem);
-        menu.Items.Add(new ToolStripSeparator());
-
-        var settingsItem = new ToolStripMenuItem("Settings", null, (s, e) => OpenSettingsRequested?.Invoke());
-        menu.Items.Add(settingsItem);
-
-        var runLogItem = new ToolStripMenuItem("Run log", null, (s, e) => OpenRunLogRequested?.Invoke());
-        menu.Items.Add(runLogItem);
-
-        menu.Items.Add(new ToolStripSeparator());
-
-        var exitItem = new ToolStripMenuItem("Quit WinFlow", null, (s, e) => ExitRequested?.Invoke());
-        menu.Items.Add(exitItem);
-
-        _notifyIcon.ContextMenuStrip = menu;
+        // A WinForms ContextMenuStrip always renders the legacy Win32 look; use a
+        // Fluent WPF popup instead, created lazily on the UI thread.
+        _notifyIcon.MouseClick += (s, e) =>
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                PostToUi(ShowFluentMenu);
+            }
+        };
         _notifyIcon.DoubleClick += (s, e) => OpenSettingsRequested?.Invoke();
 
         _appState.PhaseChanged += OnPhaseChanged;
@@ -74,6 +67,38 @@ public class SystemTrayManager : IDisposable
         return (Icon.FromHandle(hIcon), hIcon);
     }
 
+    private void PostToUi(Action action)
+    {
+        if (_uiContext != null)
+        {
+            _uiContext.Post(_ => action(), null);
+        }
+        else
+        {
+            action();
+        }
+    }
+
+    private void ShowFluentMenu()
+    {
+        if (_menuWindow == null)
+        {
+            _menuWindow = new TrayMenuWindow();
+            _menuWindow.SettingsRequested += () => OpenSettingsRequested?.Invoke();
+            _menuWindow.RunLogRequested += () => OpenRunLogRequested?.Invoke();
+            _menuWindow.QuitRequested += () => ExitRequested?.Invoke();
+        }
+
+        if (_menuWindow.IsVisible)
+        {
+            _menuWindow.Dismiss();
+            return;
+        }
+
+        _menuWindow.SetStatus(_statusText);
+        _menuWindow.ShowAtCursor();
+    }
+
     public void ShowNotification(string title, string message)
     {
         try
@@ -89,29 +114,26 @@ public class SystemTrayManager : IDisposable
     private void OnPhaseChanged(PipelinePhase phase)
     {
         // Phase events arrive on pipeline threads; marshal tray updates to the UI thread.
-        if (_uiContext != null)
-        {
-            _uiContext.Post(_ => UpdateTrayText(phase), null);
-        }
-        else
-        {
-            UpdateTrayText(phase);
-        }
+        PostToUi(() => UpdateTrayText(phase));
     }
 
     private void UpdateTrayText(PipelinePhase phase)
     {
-        _notifyIcon.Text = phase switch
+        _statusText = phase switch
         {
             PipelinePhase.Recording => "WinFlow — listening…",
             PipelinePhase.Transcribing => "WinFlow — writing it down…",
             _ => "WinFlow — hold CapsLock to speak"
         };
+        _notifyIcon.Text = _statusText;
+        _menuWindow?.SetStatus(_statusText);
     }
 
     public void Dispose()
     {
         _appState.PhaseChanged -= OnPhaseChanged;
+        _menuWindow?.Close();
+        _menuWindow = null;
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _icon.Dispose();
