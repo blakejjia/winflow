@@ -5,25 +5,25 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WinFlow.Core.Pipeline;
-using Wpf.Ui.Appearance;
 
 namespace WinFlow.Views;
 
+/// <summary>
+/// Minimal black-pill HUD: white waveform, white text, no glow or shadow.
+/// Everything outside the pill is fully transparent and click-through.
+/// The look is intentionally fixed (black/white) regardless of app theme.
+/// </summary>
 public partial class OverlayWindow : Window
 {
     private readonly AppState _appState;
     private readonly DispatcherTimer _timer;
     private DateTime _recordingStartTime;
-    private Storyboard? _haloStoryboard;
     private Storyboard? _spinnerStoryboard;
 
     public OverlayWindow(AppState appState)
     {
         InitializeComponent();
         _appState = appState;
-
-        ApplyHudTheme(ApplicationThemeManager.GetAppTheme());
-        ApplicationThemeManager.Changed += OnAppThemeChanged;
 
         _timer = new DispatcherTimer
         {
@@ -61,35 +61,6 @@ public partial class OverlayWindow : Window
         SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW);
     }
 
-    private void OnAppThemeChanged(ApplicationTheme theme, System.Windows.Media.Color accent)
-    {
-        Dispatcher.BeginInvoke(() => ApplyHudTheme(theme));
-    }
-
-    /// <summary>
-    /// The HUD is a transparent layered window, so it paints its own Fluent-style
-    /// palette instead of inheriting window brushes that assume an opaque backdrop.
-    /// </summary>
-    private void ApplyHudTheme(ApplicationTheme theme)
-    {
-        bool dark = theme != ApplicationTheme.Light;
-
-        void SetBrush(string key, string hex) =>
-            Resources[key] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex));
-
-        SetBrush("HudBackgroundBrush", dark ? "#F21C1C1E" : "#F2FFFFFF");
-        SetBrush("HudBorderBrush", dark ? "#28FFFFFF" : "#14000000");
-        SetBrush("HudTextBrush", dark ? "#F5FFFFFF" : "#E4000000");
-        SetBrush("HudTextSecondaryBrush", dark ? "#99FFFFFF" : "#8A000000");
-        SetBrush("HudRecordingBrush", "#FFFF453A");
-        SetBrush("HudAccentBrush", dark ? "#FF60CDFF" : "#FF0067C0");
-        SetBrush("HudSuccessBrush", dark ? "#FF6CCB5F" : "#FF0F7B0F");
-        SetBrush("HudErrorBrush", dark ? "#FFFF99A4" : "#FFC42B1C");
-        SetBrush("HudCautionBrush", dark ? "#FFFCE100" : "#FF9D5D00");
-
-        Waveform?.SetBarBrush((System.Windows.Media.Brush)Resources["HudTextBrush"]);
-    }
-
     public void CenterAtTop()
     {
         var screenWidth = SystemParameters.PrimaryScreenWidth;
@@ -123,7 +94,6 @@ public partial class OverlayWindow : Window
                     RecordingPanel.Visibility = Visibility.Visible;
                     CenterAtTop();
                     ShowWithSlide();
-                    StartHaloBreathing();
                     break;
 
                 case PipelinePhase.Transcribing:
@@ -174,24 +144,6 @@ public partial class OverlayWindow : Window
         PillBorder.BeginAnimation(OpacityProperty, fade);
     }
 
-    private void StartHaloBreathing()
-    {
-        var breathe = new DoubleAnimation
-        {
-            From = 0.2,
-            To = 0.55,
-            Duration = TimeSpan.FromMilliseconds(900),
-            AutoReverse = true,
-            RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
-        };
-        _haloStoryboard = new Storyboard();
-        _haloStoryboard.Children.Add(breathe);
-        Storyboard.SetTarget(breathe, RecordingHalo);
-        Storyboard.SetTargetProperty(breathe, new PropertyPath(OpacityProperty));
-        _haloStoryboard.Begin();
-    }
-
     private void StartSpinner()
     {
         var rotate = new DoubleAnimation
@@ -210,8 +162,6 @@ public partial class OverlayWindow : Window
 
     private void StopAnimations()
     {
-        _haloStoryboard?.Stop();
-        _haloStoryboard = null;
         _spinnerStoryboard?.Stop();
         _spinnerStoryboard = null;
     }
@@ -247,7 +197,6 @@ public partial class OverlayWindow : Window
     {
         _timer.Stop();
         StopAnimations();
-        ApplicationThemeManager.Changed -= OnAppThemeChanged;
         _appState.PhaseChanged -= OnPhaseChanged;
         _appState.AudioLevelChanged -= OnAudioLevelChanged;
         _appState.ErrorOccurred -= OnErrorOccurred;

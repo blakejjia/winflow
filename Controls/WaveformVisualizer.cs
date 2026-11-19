@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using WpfRectangle = System.Windows.Shapes.Rectangle;
 
 namespace WinFlow.Controls;
@@ -8,7 +9,7 @@ namespace WinFlow.Controls;
 public class WaveformVisualizer : StackPanel
 {
     private readonly WpfRectangle[] _bars = new WpfRectangle[5];
-    private static readonly double[] Multipliers = { 0.6, 1.1, 1.4, 0.9, 0.7 };
+    private static readonly double[] Multipliers = { 0.7, 1.0, 1.25, 0.95, 0.75 };
 
     public static readonly DependencyProperty AudioLevelProperty =
         DependencyProperty.Register(
@@ -34,12 +35,12 @@ public class WaveformVisualizer : StackPanel
         {
             _bars[i] = new WpfRectangle
             {
-                Width = 4,
-                Height = 6,
-                RadiusX = 2,
-                RadiusY = 2,
+                Width = 3,
+                Height = 4,
+                RadiusX = 1.5,
+                RadiusY = 1.5,
                 Margin = new Thickness(2, 0, 2, 0),
-                Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(240, 255, 255, 255)),
+                Fill = System.Windows.Media.Brushes.White,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center
             };
             Children.Add(_bars[i]);
@@ -54,7 +55,7 @@ public class WaveformVisualizer : StackPanel
         }
     }
 
-    /// <summary>Lets the HUD tint the bars to match its light/dark palette.</summary>
+    /// <summary>Lets the HUD tint the bars to match its palette.</summary>
     public void SetBarBrush(System.Windows.Media.Brush brush)
     {
         foreach (var bar in _bars)
@@ -65,27 +66,32 @@ public class WaveformVisualizer : StackPanel
 
     private void UpdateBars(float level)
     {
-        // level is 0.0 to 1.0. Ease each bar toward its target so the meter feels
-        // like a living thing rather than a jumping equalizer.
-        double baseHeight = 5.0;
+        // level is already perceptually shaped (see AudioLevelCalculator.ShapeForDisplay).
+        double baseHeight = 4.0;
         double maxHeight = 24.0;
 
         for (int i = 0; i < _bars.Length; i++)
         {
-            double target = baseHeight + (maxHeight - baseHeight) * Math.Clamp(level * Multipliers[i] * 2.5, 0.0, 1.0);
-
-            // Animate from wherever the previous animation currently is, so successive
-            // buffer updates blend instead of snapping.
-            var animation = new System.Windows.Media.Animation.DoubleAnimation
-            {
-                To = target,
-                Duration = TimeSpan.FromMilliseconds(120),
-                EasingFunction = new System.Windows.Media.Animation.QuadraticEase
-                {
-                    EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut
-                }
-            };
-            _bars[i].BeginAnimation(HeightProperty, animation, System.Windows.Media.Animation.HandoffBehavior.Compose);
+            double target = baseHeight + (maxHeight - baseHeight) * Math.Clamp(level * Multipliers[i], 0.0, 1.0);
+            AnimateBar(i, target);
         }
+    }
+
+    private void AnimateBar(int index, double target)
+    {
+        // Snapshot the bar's CURRENT animated height and replace any running animation,
+        // so rapid buffer updates blend smoothly instead of stacking animations.
+        double current = _bars[index].Height;
+        _bars[index].BeginAnimation(HeightProperty, null);
+        _bars[index].Height = current;
+
+        var animation = new DoubleAnimation
+        {
+            From = current,
+            To = target,
+            Duration = TimeSpan.FromMilliseconds(110),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        _bars[index].BeginAnimation(HeightProperty, animation);
     }
 }

@@ -97,8 +97,8 @@ public class WasapiAudioRecorder : IAudioRecorder
                     }
                 }
 
-                var rms = AudioLevelCalculator.CalculateRmsLevel(converted, converted.Length);
-                AudioLevelUpdated?.Invoke(rms);
+                var level = AudioLevelCalculator.CalculateDisplayLevel(converted, converted.Length);
+                AudioLevelUpdated?.Invoke(level);
             };
 
             _capture.StartRecording();
