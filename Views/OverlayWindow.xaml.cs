@@ -30,6 +30,7 @@ public partial class OverlayWindow : Window
         _appState.PhaseChanged += OnPhaseChanged;
         _appState.AudioLevelChanged += OnAudioLevelChanged;
         _appState.ErrorOccurred += OnErrorOccurred;
+        _appState.NoticeRaised += OnNoticeRaised;
 
         Loaded += OnLoaded;
     }
@@ -65,6 +66,10 @@ public partial class OverlayWindow : Window
         // never block waiting on the UI thread.
         Dispatcher.BeginInvoke(() =>
         {
+            if (phase == PipelinePhase.Recording || phase == PipelinePhase.Idle)
+            {
+                ElevatedBadge.Visibility = Visibility.Collapsed;
+            }
             RecordingPanel.Visibility = Visibility.Collapsed;
             TranscribingPanel.Visibility = Visibility.Collapsed;
             FeedbackPanel.Visibility = Visibility.Collapsed;
@@ -116,6 +121,16 @@ public partial class OverlayWindow : Window
         });
     }
 
+    private void OnNoticeRaised(PipelineNotice notice)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            ElevatedBadge.Visibility = notice == PipelineNotice.TargetElevated
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        });
+    }
+
     private void OnErrorOccurred(string message)
     {
         Dispatcher.BeginInvoke(() =>
@@ -130,6 +145,7 @@ public partial class OverlayWindow : Window
         _appState.PhaseChanged -= OnPhaseChanged;
         _appState.AudioLevelChanged -= OnAudioLevelChanged;
         _appState.ErrorOccurred -= OnErrorOccurred;
+        _appState.NoticeRaised -= OnNoticeRaised;
         base.OnClosed(e);
     }
 

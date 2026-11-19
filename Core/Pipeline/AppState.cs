@@ -23,10 +23,18 @@ public class AppState : IDisposable
     private readonly List<PipelineHistoryItem> _history = new();
     private readonly object _historyLock = new();
 
+    /// <summary>
+    /// Serializes all state transitions. Keyboard actions arrive on thread-pool threads
+    /// and the pipeline continuation runs concurrently; every read/write of the fields
+    /// below happens under this gate so phases can never interleave.
+    /// </summary>
+    private readonly object _stateLock = new();
+
     private PipelinePhase _phase = PipelinePhase.Idle;
     private float _audioLevel;
+    private int _runGeneration;
+    private Task<AppContextSnapshot>? _contextSnapshotTask;
     private Task<string>? _contextVisionTask;
-    private AppContextSnapshot? _activeContextSnapshot;
     private CancellationTokenSource? _currentCts;
     private TaskCompletionSource? _idleTcs;
 
@@ -40,17 +48,26 @@ public class AppState : IDisposable
 
     public PipelinePhase Phase
     {
-        get => _phase;
+        get { lock (_stateLock) return _phase; }
         private set
         {
-            if (_phase != value)
+            bool changed = false;
+            lock (_stateLock)
             {
-                _phase = value;
-                PhaseChanged?.Invoke(_phase);
-                if (_phase == PipelinePhase.Idle)
+                if (_phase != value)
                 {
-                    _idleTcs?.TrySetResult();
+                    _phase = value;
+                    changed = true;
+                    if (_phase == PipelinePhase.Idle)
+                    {
+                        _idleTcs?.TrySetResult();
+                    }
                 }
+            }
+            // Events fire outside the lock; subscribers marshal to their own threads.
+            if (changed)
+            {
+                PhaseChanged?.Invoke(value);
             }
         }
     }
@@ -77,6 +94,7 @@ public class AppState : IDisposable
     public event Action<float>? AudioLevelChanged;
     public event Action<PipelineHistoryItem>? RunCompleted;
     public event Action<string>? ErrorOccurred;
+    public event Action<PipelineNotice>? NoticeRaised;
 
     public AppState(
         IAudioRecorder audioRecorder,
@@ -138,41 +156,37 @@ public class AppState : IDisposable
 
     private void StartDictation()
     {
-        if (Phase != PipelinePhase.Idle) return;
+        CancellationToken ct;
+        lock (_stateLock)
+        {
+            if (_phase != PipelinePhase.Idle) return;
 
-        _idleTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _currentCts?.Cancel();
-        _currentCts = new CancellationTokenSource();
-        var ct = _currentCts.Token;
-
-        Phase = PipelinePhase.Recording;
+            _runGeneration++;
+            _idleTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _currentCts?.Cancel();
+            _currentCts?.Dispose();
+            _currentCts = new CancellationTokenSource();
+            ct = _currentCts.Token;
+            _phase = PipelinePhase.Recording;
+        }
+        PhaseChanged?.Invoke(PipelinePhase.Recording);
 
         try
         {
             _audioRecorder.StartRecording(Settings.SelectedMicrophoneId);
 
-            // Concurrent Stage 1: Capture context snapshot & trigger vision synthesis
-            _contextVisionTask = Task.Run(async () =>
+            // Concurrent Stage 1: snapshot first (fast, local), then vision synthesis (slow,
+            // network). The snapshot task is kept separate so Stop can await just the
+            // snapshot without waiting on the vision LLM.
+            var snapshotTask = _contextService.CaptureContextSnapshotAsync(
+                Settings.ContextCaptureEnabled,
+                Settings.ContextScreenshotMaxDimension);
+
+            lock (_stateLock)
             {
-                try
-                {
-                    _activeContextSnapshot = await _contextService.CaptureContextSnapshotAsync(
-                        Settings.ContextCaptureEnabled,
-                        Settings.ContextScreenshotMaxDimension);
-
-                    if (ct.IsCancellationRequested) return string.Empty;
-
-                    return await _contextVisionService.SynthesizeContextAsync(
-                        _activeContextSnapshot.ScreenshotBase64Jpeg,
-                        _activeContextSnapshot.ProcessName,
-                        _activeContextSnapshot.WindowTitle,
-                        ct);
-                }
-                catch
-                {
-                    return string.Empty;
-                }
-            }, ct);
+                _contextSnapshotTask = snapshotTask;
+                _contextVisionTask = ContinueWithVision(snapshotTask, ct);
+            }
         }
         catch (Exception ex)
         {
@@ -180,12 +194,42 @@ public class AppState : IDisposable
         }
     }
 
+    private async Task<string> ContinueWithVision(Task<AppContextSnapshot> snapshotTask, CancellationToken ct)
+    {
+        try
+        {
+            var snapshot = await snapshotTask;
+            if (ct.IsCancellationRequested) return string.Empty;
+
+            return await _contextVisionService.SynthesizeContextAsync(
+                snapshot.ScreenshotBase64Jpeg,
+                snapshot.ProcessName,
+                snapshot.WindowTitle,
+                ct);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
     private void StopDictation()
     {
-        if (Phase != PipelinePhase.Recording) return;
+        CancellationToken ct;
+        Task<AppContextSnapshot>? snapshotTask;
+        Task<string>? visionTask;
+        int generation;
 
-        Phase = PipelinePhase.Transcribing;
-        var ct = _currentCts?.Token ?? CancellationToken.None;
+        lock (_stateLock)
+        {
+            if (_phase != PipelinePhase.Recording) return;
+            _phase = PipelinePhase.Transcribing;
+            ct = _currentCts?.Token ?? CancellationToken.None;
+            snapshotTask = _contextSnapshotTask;
+            visionTask = _contextVisionTask;
+            generation = _runGeneration;
+        }
+        PhaseChanged?.Invoke(PipelinePhase.Transcribing);
 
         _ = Task.Run(async () =>
         {
@@ -193,14 +237,13 @@ public class AppState : IDisposable
             string rawTranscript = string.Empty;
             string cleanedText = string.Empty;
             string? contextSummary = null;
-            string? selectedText = null;
+            AppContextSnapshot? snapshot = null;
 
             try
             {
                 var wav = await _audioRecorder.StopRecordingAsync();
                 if (wav == null || wav.Length <= 44 || ct.IsCancellationRequested)
                 {
-                    Phase = PipelinePhase.Idle;
                     return;
                 }
 
@@ -208,11 +251,25 @@ public class AppState : IDisposable
                 rawTranscript = await _transcriptionService.TranscribeAsync(wav, Settings.TranscriptionLanguage, ct);
                 if (string.IsNullOrWhiteSpace(rawTranscript) || ct.IsCancellationRequested)
                 {
-                    Phase = PipelinePhase.Idle;
                     return;
                 }
 
-                selectedText = _activeContextSnapshot?.SelectedText;
+                // Await the local context snapshot (bounded) so Edit Mode selection and
+                // elevation info are deterministic, without waiting on the vision LLM.
+                if (snapshotTask != null)
+                {
+                    var done = await Task.WhenAny(snapshotTask, Task.Delay(500, CancellationToken.None));
+                    if (done == snapshotTask)
+                    {
+                        snapshot = await snapshotTask;
+                    }
+                }
+                var selectedText = snapshot?.SelectedText;
+
+                if (snapshot?.IsElevated == true)
+                {
+                    NoticeRaised?.Invoke(PipelineNotice.TargetElevated);
+                }
 
                 bool pressEnterAfter = Settings.PressEnterAfterDictation;
 
@@ -224,17 +281,27 @@ public class AppState : IDisposable
                 }
                 else
                 {
-                    // Await concurrent vision synthesis with 2000ms timeout
-                    if (_contextVisionTask != null)
+                    // LLM cleanup needs a key; macros above intentionally work offline.
+                    if (string.IsNullOrWhiteSpace(Settings.GroqApiKey))
                     {
-                        var completed = await Task.WhenAny(_contextVisionTask, Task.Delay(2000, ct));
-                        if (completed == _contextVisionTask)
+                        HandleError("No API key configured. Open Settings and add your Groq API key.", generation);
+                        return;
+                    }
+
+                    // Await concurrent vision synthesis with 2000ms timeout
+                    if (visionTask != null)
+                    {
+                        var completed = await Task.WhenAny(visionTask, Task.Delay(2000, CancellationToken.None));
+                        if (completed == visionTask)
                         {
-                            contextSummary = await _contextVisionTask;
+                            contextSummary = await visionTask;
                         }
                     }
 
-                    contextSummary ??= $"User in {_activeContextSnapshot?.ProcessName ?? "active app"}.";
+                    if (string.IsNullOrWhiteSpace(contextSummary))
+                    {
+                        contextSummary = $"User in {snapshot?.ProcessName ?? "active app"}.";
+                    }
 
                     // Check for "press enter" voice command
                     if (rawTranscript.EndsWith("press enter", StringComparison.OrdinalIgnoreCase) ||
@@ -252,15 +319,19 @@ public class AppState : IDisposable
                         ct);
                 }
 
-                if (string.IsNullOrWhiteSpace(cleanedText))
+                if (string.IsNullOrWhiteSpace(cleanedText) || ct.IsCancellationRequested)
                 {
-                    Phase = PipelinePhase.Idle;
                     return;
                 }
 
                 // Text Injection
                 Phase = PipelinePhase.Inserting;
-                await _textInjector.InjectTextAsync(cleanedText, pressEnterAfter);
+                bool injected = await _textInjector.InjectTextAsync(cleanedText, pressEnterAfter);
+                if (!injected)
+                {
+                    HandleError("Could not access the clipboard to paste. Text kept in Run Log.", generation);
+                    return;
+                }
 
                 sw.Stop();
 
@@ -281,29 +352,83 @@ public class AppState : IDisposable
                 Phase = PipelinePhase.Feedback;
                 await Task.Delay(300);
             }
+            catch (OperationCanceledException)
+            {
+                // User pressed Escape or a new run superseded this one; not an error.
+            }
             catch (Exception ex)
             {
-                HandleError($"Pipeline error: {ex.Message}");
+                HandleError($"Pipeline error: {ex.Message}", generation);
             }
             finally
             {
-                Phase = PipelinePhase.Idle;
+                lock (_stateLock)
+                {
+                    // Only the newest run may return the pipeline to Idle; a superseded
+                    // run must not yank a fresh recording back to Idle.
+                    if (_runGeneration == generation && _phase != PipelinePhase.Error)
+                    {
+                        _phase = PipelinePhase.Idle;
+                        _idleTcs?.TrySetResult();
+                    }
+                }
+                if (Phase == PipelinePhase.Idle)
+                {
+                    PhaseChanged?.Invoke(PipelinePhase.Idle);
+                }
             }
         });
     }
 
     private void CancelDictation()
     {
-        _currentCts?.Cancel();
-        _ = _audioRecorder.StopRecordingAsync();
-        Phase = PipelinePhase.Idle;
+        lock (_stateLock)
+        {
+            _runGeneration++; // invalidate any in-flight run's finally block
+            _currentCts?.Cancel();
+            _contextSnapshotTask = null;
+            _contextVisionTask = null;
+            _phase = PipelinePhase.Idle;
+            _idleTcs?.TrySetResult();
+        }
+        _ = Task.Run(async () =>
+        {
+            try { await _audioRecorder.StopRecordingAsync(); }
+            catch { /* device may already be gone */ }
+        });
+        PhaseChanged?.Invoke(PipelinePhase.Idle);
     }
 
-    private void HandleError(string message)
+    private void HandleError(string message, int? generation = null)
     {
+        int gen;
+        lock (_stateLock)
+        {
+            gen = generation ?? _runGeneration;
+            _phase = PipelinePhase.Error;
+        }
         ErrorOccurred?.Invoke(message);
-        Phase = PipelinePhase.Error;
-        _ = Task.Delay(1500).ContinueWith(_ => Phase = PipelinePhase.Idle);
+        PhaseChanged?.Invoke(PipelinePhase.Error);
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(1500);
+            bool becameIdle = false;
+            lock (_stateLock)
+            {
+                // Reset only if no newer run started and we are still showing this error.
+                if (_runGeneration == gen && _phase == PipelinePhase.Error)
+                {
+                    _phase = PipelinePhase.Idle;
+                    _idleTcs?.TrySetResult();
+                    becameIdle = true;
+                }
+            }
+            if (becameIdle)
+            {
+                PhaseChanged?.Invoke(PipelinePhase.Idle);
+            }
+        });
     }
 
     private void AddHistory(PipelineHistoryItem item)
@@ -330,18 +455,27 @@ public class AppState : IDisposable
 
     public async Task WaitForIdleAsync(int timeoutMs = 5000)
     {
-        if (Phase == PipelinePhase.Idle) return;
-        var tcs = _idleTcs;
-        if (tcs != null)
+        Task? idleTask;
+        lock (_stateLock)
         {
-            await Task.WhenAny(tcs.Task, Task.Delay(timeoutMs));
+            if (_phase == PipelinePhase.Idle) return;
+            idleTask = _idleTcs?.Task;
+        }
+        if (idleTask != null)
+        {
+            await Task.WhenAny(idleTask, Task.Delay(timeoutMs));
         }
     }
 
     public void Dispose()
     {
-        _currentCts?.Cancel();
-        _currentCts?.Dispose();
+        lock (_stateLock)
+        {
+            _runGeneration++;
+            _currentCts?.Cancel();
+            _currentCts?.Dispose();
+            _currentCts = null;
+        }
         _keyboardHook.Dispose();
         _audioRecorder.Dispose();
     }

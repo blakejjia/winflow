@@ -161,6 +161,33 @@
                 </Grid>
             </TabItem>
 
+            <!-- Voice Macros Tab -->
+            <TabItem Header="Voice Macros">
+                <Grid Margin="4,12,4,4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Spoken trigger → replacement text. Exact-phrase matches bypass the LLM entirely (works offline)."
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8"/>
+                    <DataGrid x:Name="MacrosDataGrid" Grid.Row="1"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="True"
+                              CanUserDeleteRows="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Spoken Trigger" Binding="{Binding Command}" Width="220"/>
+                            <DataGridTextColumn Header="Replacement Text" Binding="{Binding Payload}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Grid.Row="2" Text="Example: “my email” → you@example.com. Save to apply."
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               FontSize="11" Margin="0,8,0,0"/>
+                </Grid>
+            </TabItem>
+
             <!-- Prompts Tab -->
             <TabItem Header="Prompts">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4,12,12,12">

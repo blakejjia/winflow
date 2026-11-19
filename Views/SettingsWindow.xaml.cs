@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Windows;
 using System.Windows.Controls;
 using WinFlow.Audio;
+using WinFlow.Core.Models;
 using WinFlow.Core.Pipeline;
 using WinFlow.Core.Prompts;
 using Wpf.Ui.Appearance;
@@ -98,6 +99,9 @@ public partial class SettingsWindow : FluentWindow
         ContextPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomContextPrompt)
             ? s.CustomContextPrompt
             : PromptTemplates.ContextSynthesisPrompt;
+
+        MacrosDataGrid.ItemsSource = null;
+        MacrosDataGrid.ItemsSource = s.VoiceMacros;
 
         PopulateMicrophones(s.SelectedMicrophoneId);
         RefreshHistoryGrid();
@@ -226,6 +230,11 @@ public partial class SettingsWindow : FluentWindow
 
         var customCtx = ContextPromptBox.Text.Trim();
         s.CustomContextPrompt = (customCtx == PromptTemplates.ContextSynthesisPrompt) ? string.Empty : customCtx;
+
+        MacrosDataGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        s.VoiceMacros = (MacrosDataGrid.ItemsSource as IEnumerable<VoiceMacro>)?
+            .Where(m => !string.IsNullOrWhiteSpace(m.Command))
+            .ToList() ?? new List<VoiceMacro>();
 
         // Persists AND swaps the live instance shared by every API service.
         await _appState.SaveSettingsAsync(s);
