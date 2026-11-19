@@ -4,14 +4,7 @@ using WinFlow.Core.Keyboard;
 
 namespace WinFlow.WindowsInterops.Keyboard;
 
-public interface IKeyboardHook : IDisposable
-{
-    event Action<ShortcutAction>? ActionTriggered;
-    void Start();
-    void Stop();
-}
-
-public class KeyboardHookManager : IKeyboardHook
+public class KeyboardHookManager : WinFlow.Core.Keyboard.IKeyboardHook
 {
     private const int WH_KEYBOARD_LL = 13;
     private const int WM_KEYDOWN = 0x0100;
