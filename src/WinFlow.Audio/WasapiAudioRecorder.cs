@@ -1,5 +1,6 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using WinFlow.Core.Audio;
 
 namespace WinFlow.Audio;
 

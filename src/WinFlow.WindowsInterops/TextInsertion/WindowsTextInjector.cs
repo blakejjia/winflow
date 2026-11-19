@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using WinFlow.Core.TextInsertion;
 
 namespace WinFlow.WindowsInterops.TextInsertion;
 

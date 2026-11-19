@@ -1,4 +1,4 @@
-namespace WinFlow.WindowsInterops.Context;
+namespace WinFlow.Core.Context;
 
 public class AppContextSnapshot
 {
@@ -10,4 +10,9 @@ public class AppContextSnapshot
     public string? ScreenshotBase64Jpeg { get; set; }
 
     public bool HasSelectedText => !string.IsNullOrWhiteSpace(SelectedText);
+}
+
+public interface IContextService
+{
+    Task<AppContextSnapshot> CaptureContextSnapshotAsync(bool captureScreenshot = true, int maxDimension = 1024);
 }

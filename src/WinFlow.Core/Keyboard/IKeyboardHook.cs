@@ -1,4 +1,4 @@
-namespace WinFlow.WindowsInterops.Keyboard;
+namespace WinFlow.Core.Keyboard;
 
 public enum ShortcutAction
 {
@@ -14,4 +14,11 @@ public enum KeyDirection
 {
     Down,
     Up
+}
+
+public interface IKeyboardHook : IDisposable
+{
+    event Action<ShortcutAction>? ActionTriggered;
+    void Start();
+    void Stop();
 }

@@ -1,3 +1,5 @@
+using WinFlow.Core.Keyboard;
+
 namespace WinFlow.WindowsInterops.Keyboard;
 
 public class CapsLockStateMachine

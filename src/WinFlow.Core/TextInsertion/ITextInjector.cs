@@ -1,4 +1,4 @@
-namespace WinFlow.WindowsInterops.TextInsertion;
+namespace WinFlow.Core.TextInsertion;
 
 public interface ITextInjector
 {

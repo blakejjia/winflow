@@ -1,4 +1,4 @@
-namespace WinFlow.Audio;
+namespace WinFlow.Core.Audio;
 
 public record AudioDeviceInfo(string Id, string Name);
 
