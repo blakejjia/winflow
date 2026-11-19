@@ -1,4 +1,4 @@
-<ui:FluentWindow x:Class="WinFlow.Views.MainWindow"
+﻿<ui:FluentWindow x:Class="WinFlow.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -400,7 +400,6 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ui:SymbolIcon Symbol="Options24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -408,8 +407,6 @@
                                         <TextBlock Text="Shortcut, microphone, language, theme" FontSize="12"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                     </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="14"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"/>
                                 </Grid>
                             </ui:CardAction>
                             <ui:CardAction Margin="0,0,0,8" Click="SettingsCategory_Click" Tag="System">
@@ -417,7 +414,6 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -425,8 +421,6 @@
                                         <TextBlock Text="Fullscreen games, Enter after pasting" FontSize="12"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                     </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="14"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"/>
                                 </Grid>
                             </ui:CardAction>
                             <ui:CardAction Margin="0,0,0,8" Click="SettingsCategory_Click" Tag="Ai">
@@ -434,7 +428,6 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ui:SymbolIcon Symbol="BrainCircuit24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -442,8 +435,6 @@
                                         <TextBlock Text="API key, endpoint, transcription and cleanup models" FontSize="12"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                     </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="14"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"/>
                                 </Grid>
                             </ui:CardAction>
                             <ui:CardAction Margin="0,0,0,8" Click="SettingsCategory_Click" Tag="Privacy">
@@ -451,7 +442,6 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -459,8 +449,6 @@
                                         <TextBlock Text="Screen context, clipboard protection, what stays on this PC" FontSize="12"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                     </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="14"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"/>
                                 </Grid>
                             </ui:CardAction>
                             <ui:CardAction Margin="0,0,0,8" Click="SettingsCategory_Click" Tag="Prompts">
@@ -468,7 +456,6 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ui:SymbolIcon Symbol="TextGrammarWand24" FontSize="20" Margin="4,0,14,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -476,8 +463,6 @@
                                         <TextBlock Text="The instructions behind cleanup and context" FontSize="12"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                     </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="14"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"/>
                                 </Grid>
                             </ui:CardAction>
                         </StackPanel>

@@ -123,6 +123,21 @@ public partial class MainWindow : FluentWindow
 
     public void NavigateToHistory() => ShowPage("History");
 
+    /// <summary>Quick fade + rise so page switches feel continuous, not swapped.</summary>
+    private static void AnimatePageIn(FrameworkElement page)
+    {
+        var transform = new System.Windows.Media.TranslateTransform(0, 8);
+        page.RenderTransform = transform;
+        page.Opacity = 0;
+
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        var duration = TimeSpan.FromMilliseconds(180);
+        page.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0, 1, duration) { EasingFunction = ease });
+        transform.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(8, 0, duration) { EasingFunction = ease });
+    }
+
     // ---------- home & history ----------
 
     private void OnRunCompleted(PipelineHistoryItem item)
@@ -342,6 +357,7 @@ public partial class MainWindow : FluentWindow
         SettingsBreadcrumb.ItemsSource = new[] { "Settings" };
         SettingsHome.Visibility = Visibility.Visible;
         SettingsDetailHost.Visibility = Visibility.Collapsed;
+        AnimatePageIn(SettingsHome);
     }
 
     private void SettingsCategory_Click(object sender, RoutedEventArgs e)
@@ -367,6 +383,7 @@ public partial class MainWindow : FluentWindow
 
         SettingsHome.Visibility = Visibility.Collapsed;
         SettingsDetailHost.Visibility = Visibility.Visible;
+        AnimatePageIn(SettingsDetailHost);
     }
 
     private void SettingsBreadcrumb_ItemClicked(object sender, RoutedEventArgs e)
