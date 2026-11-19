@@ -1,0 +1,311 @@
+﻿<UserControl x:Class="WinFlow.Views.SettingsPanel"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0">
+<ScrollViewer x:Name="PaneGeneral" VerticalScrollBarVisibility="Auto" Padding="0,4,4,4">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="General" Margin="0,0,0,20"/>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="Keyboard24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Shortcut" FontWeight="Medium"/>
+                                    <TextBlock Text="Hold CapsLock and speak. Double-tap for hands-free. Shift+CapsLock stays normal." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="Mic24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Microphone" FontWeight="Medium"/>
+                                    <TextBlock Text="Which input to record from." FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ComboBox x:Name="MicComboBox" Width="220"/>
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="BookOpenGlobe24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Spoken language" FontWeight="Medium"/>
+                                    <TextBlock Text="Empty = detect automatically. Or a code like en or zh." FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:TextBox x:Name="LanguageBox" Width="110" PlaceholderText="auto"/>
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="Color24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Theme" FontWeight="Medium"/>
+                                    <TextBlock Text="Match Windows, or pick one yourself." FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ComboBox x:Name="ThemeComboBox" Width="140" SelectionChanged="ThemeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Use Windows"/>
+                                <ComboBoxItem Content="Dark"/>
+                                <ComboBoxItem Content="Light"/>
+                            </ComboBox>
+                        </ui:CardControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+<ScrollViewer x:Name="PaneSystem" VerticalScrollBarVisibility="Auto" Padding="0,4,4,4">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="System" Margin="0,0,0,20"/>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="Games24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Stay out of fullscreen games" FontWeight="Medium"/>
+                                    <TextBlock Text="While a game owns the screen, CapsLock works normally and WinFlow keeps quiet." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch x:Name="PauseGamesCheckBox" IsChecked="True"/>
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="KeyboardTab24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Press Enter after pasting" FontWeight="Medium"/>
+                                    <TextBlock Text="Sends the message right after dictating. You can also just say “press enter”." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch x:Name="PressEnterCheckBox"/>
+                        </ui:CardControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+<ScrollViewer x:Name="PaneAi" VerticalScrollBarVisibility="Auto" Padding="0,4,4,4">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="AI &amp; models" Margin="0,0,0,4"/>
+                        <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                      Text="One connection, four jobs. Defaults are fast and cheap on Groq."
+                                      TextWrapping="Wrap" Margin="0,0,0,20"/>
+
+                        <!-- Connection: one grouped card, rows separated by hairlines -->
+                        <ui:Card Padding="0" Margin="0,0,0,24">
+                            <StackPanel>
+                                <Grid Margin="16,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Groq API key" FontWeight="Medium"/>
+                                        <TextBlock Text="Stays on this PC, encrypted with Windows DPAPI." FontSize="12"
+                                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:PasswordBox x:Name="ApiKeyBox" Width="220" PasswordChanged="ApiKeyBox_PasswordChanged" PlaceholderText="gsk_..."/>
+                                        <ui:Button Content="Test" Click="TestApiKey_Click" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="16,0"/>
+                                <Grid Margin="16,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="API base URL" FontWeight="Medium"/>
+                                        <TextBlock Text="Any OpenAI-compatible endpoint — Ollama, LM Studio, your own server." FontSize="12"
+                                                   TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:TextBox x:Name="BaseUrlBox" Grid.Column="1" Width="260" VerticalAlignment="Center"
+                                                PlaceholderText="https://api.groq.com/openai/v1"/>
+                                </Grid>
+                            </StackPanel>
+                        </ui:Card>
+
+                        <DockPanel Margin="0,0,0,2">
+                            <ui:TextBlock FontTypography="BodyStrong" Text="Models" VerticalAlignment="Center"/>
+                            <ui:Button x:Name="RefreshModelsButton" Content="Refresh list" Click="RefreshModels_Click"
+                                       Appearance="Transparent" HorizontalAlignment="Right" Padding="8,2">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="ArrowClockwise24"/>
+                                </ui:Button.Icon>
+                            </ui:Button>
+                        </DockPanel>
+                        <TextBlock x:Name="ModelsStatusText" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                        <!-- Models: one grouped card, label left / picker right -->
+                        <ui:Card Padding="0">
+                            <StackPanel>
+                                <Grid Margin="16,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="270"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Transcription" FontWeight="Medium"/>
+                                        <TextBlock Text="Hears your words" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:AutoSuggestBox x:Name="TranscriptionModelBox" Grid.Column="1" VerticalAlignment="Center"
+                                                       PlaceholderText="whisper-large-v3"
+                                                       TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="16,0"/>
+                                <Grid Margin="16,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="270"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Cleanup" FontWeight="Medium"/>
+                                        <TextBlock Text="Writes them properly" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:AutoSuggestBox x:Name="PostProcessingModelBox" Grid.Column="1" VerticalAlignment="Center"
+                                                       PlaceholderText="openai/gpt-oss-20b"
+                                                       TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="16,0"/>
+                                <Grid Margin="16,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="270"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Cleanup fallback" FontWeight="Medium"/>
+                                        <TextBlock Text="Tried once if cleanup fails" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:AutoSuggestBox x:Name="FallbackModelBox" Grid.Column="1" VerticalAlignment="Center"
+                                                       PlaceholderText="qwen/qwen3-32b"
+                                                       TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="16,0"/>
+                                <Grid Margin="16,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="270"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Context vision" FontWeight="Medium"/>
+                                        <TextBlock Text="Reads the room while you speak" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ui:AutoSuggestBox x:Name="ContextModelBox" Grid.Column="1" VerticalAlignment="Center"
+                                                       PlaceholderText="meta-llama/llama-4-scout-17b-16e-instruct"
+                                                       TextChanged="ModelBox_TextChanged" SuggestionChosen="ModelBox_SuggestionChosen"/>
+                                </Grid>
+                            </StackPanel>
+                        </ui:Card>
+                    </StackPanel>
+                </ScrollViewer>
+
+<ScrollViewer x:Name="PanePrivacy" VerticalScrollBarVisibility="Auto" Padding="0,4,4,4">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="Privacy" Margin="0,0,0,4"/>
+                        <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                      Text="WinFlow has no servers of its own. Audio and text go only to the API endpoint you configure, and history stays on this PC."
+                                      TextWrapping="Wrap" Margin="0,0,0,20"/>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="MicSparkle24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Understand my screen" FontWeight="Medium"/>
+                                    <TextBlock Text="Reads the active window and a small screenshot so names and jargon come out right. Off = only your audio leaves this PC." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch x:Name="ContextCaptureCheckBox" IsChecked="True"/>
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="ClipboardCheckmark24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Protect my clipboard" FontWeight="Medium"/>
+                                    <TextBlock Text="Whatever you copied comes back after each paste, and Win+V history stays clean." FontSize="12"
+                                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch x:Name="PreserveClipboardCheckBox" IsChecked="True"/>
+                        </ui:CardControl>
+
+                        <ui:Card Padding="16" Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="What stays on this PC" FontWeight="Medium" Margin="0,0,0,6"/>
+                                <TextBlock FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Text="• Your API key (encrypted with Windows DPAPI)&#10;• Dictation history and word counts&#10;• Meeting notes and transcripts&#10;&#10;Nothing is uploaded anywhere except the API calls you configure. No telemetry, no analytics, no accounts."/>
+                            </StackPanel>
+                        </ui:Card>
+                    </StackPanel>
+                </ScrollViewer>
+
+<ScrollViewer x:Name="PanePrompts" VerticalScrollBarVisibility="Auto" Padding="0,4,4,4">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left">
+                        <ui:TextBlock FontTypography="Title" Text="Prompts" Margin="0,0,0,4"/>
+                        <ui:TextBlock FontTypography="Body" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                      Text="The instructions behind cleanup and context. The defaults are battle-tested — edit only if you need to."
+                                      TextWrapping="Wrap" Margin="0,0,0,20"/>
+
+                        <DockPanel Margin="0,0,0,8">
+                            <ui:TextBlock FontTypography="BodyStrong" Text="Cleanup system prompt" VerticalAlignment="Center"/>
+                            <ui:Button Content="Reset" Click="ResetSystemPrompt_Click" HorizontalAlignment="Right"
+                                       Appearance="Transparent" Padding="8,2"/>
+                        </DockPanel>
+                        <ui:TextBox x:Name="SystemPromptBox" Height="180" AcceptsReturn="True" TextWrapping="Wrap"
+                                    VerticalContentAlignment="Top" FontFamily="Consolas" FontSize="12" Margin="0,0,0,20"/>
+
+                        <DockPanel Margin="0,0,0,8">
+                            <ui:TextBlock FontTypography="BodyStrong" Text="Context vision prompt" VerticalAlignment="Center"/>
+                            <ui:Button Content="Reset" Click="ResetContextPrompt_Click" HorizontalAlignment="Right"
+                                       Appearance="Transparent" Padding="8,2"/>
+                        </DockPanel>
+                        <ui:TextBox x:Name="ContextPromptBox" Height="130" AcceptsReturn="True" TextWrapping="Wrap"
+                                    VerticalContentAlignment="Top" FontFamily="Consolas" FontSize="12"/>
+                    </StackPanel>
+                </ScrollViewer>
+        </Grid>
+        <Border Grid.Row="1" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                Padding="0,10" Background="{DynamicResource LayerFillColorDefaultBrush}">
+            <ui:Button Content="Save changes" Click="SaveButton_Click" Appearance="Primary"
+                       HorizontalAlignment="Right" Height="32" Padding="18,4">
+                <ui:Button.Icon>
+                    <ui:SymbolIcon Symbol="Checkmark24"/>
+                </ui:Button.Icon>
+            </ui:Button>
+        </Border>
+        <ui:SnackbarPresenter x:Name="SnackbarPresenter" Grid.Row="0" VerticalAlignment="Bottom" Margin="0,0,0,16"/>
+    </Grid>
+</UserControl>

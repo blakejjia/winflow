@@ -1,0 +1,70 @@
+<Window x:Class="WinFlow.Views.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:WinFlow.Controls"
+        Title="WinFlow HUD"
+        Width="280" Height="90"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        ShowActivated="False"
+        Focusable="False">
+
+    <!-- Plain WPF transparency: this path is known to render on this machine.
+         The window is barely larger than the pill, so any composition artifact
+         is confined to a few pixels around it. -->
+    <Grid>
+        <Border x:Name="PillBorder"
+                Background="#FF000000"
+                CornerRadius="19"
+                Width="96" Height="38"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <ScaleTransform x:Name="PillScale" ScaleX="1" ScaleY="1"/>
+            </Border.RenderTransform>
+            <Grid>
+                <!-- Listening: breathing white bars -->
+                <controls:WaveformVisualizer x:Name="Waveform" Visibility="Visible"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                <!-- Transcribing: small white spinner -->
+                <Grid x:Name="TranscribingPanel" Visibility="Collapsed" Width="18" Height="18"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse Width="18" Height="18" Stroke="#4DFFFFFF" StrokeThickness="2"/>
+                    <Path x:Name="SpinnerArc" Width="18" Height="18"
+                          Stroke="#FFFFFFFF" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Data="M 9,1 A 8,8 0 0 1 17,9"
+                          RenderTransformOrigin="0.5,0.5">
+                        <Path.RenderTransform>
+                            <RotateTransform x:Name="SpinnerRotation"/>
+                        </Path.RenderTransform>
+                    </Path>
+                </Grid>
+
+                <!-- Safety advisories only -->
+                <StackPanel x:Name="AdvisoryPanel" Visibility="Collapsed"
+                            VerticalAlignment="Center" Margin="12,0">
+                    <TextBlock x:Name="ElevatedBadge"
+                               Visibility="Collapsed"
+                               Text="🛡 Elevated window — run WinFlow as admin"
+                               Foreground="#FFFFD60A"
+                               FontSize="10" FontWeight="SemiBold"
+                               TextWrapping="Wrap" TextAlignment="Center"/>
+                    <TextBlock x:Name="ErrorText"
+                               Visibility="Collapsed"
+                               Text=""
+                               Foreground="#FFFFFFFF"
+                               FontSize="10"
+                               FontFamily="Segoe UI Variable Text, Segoe UI"
+                               TextWrapping="Wrap" TextAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

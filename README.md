@@ -29,9 +29,10 @@ WinFlow is a native Windows desktop utility for speech-to-text dictation and in-
 ### Building and Running
 
 ```powershell
-dotnet build WinFlow.slnx
-dotnet run --project src/WinFlow.App/WinFlow.App.csproj
+./run.ps1
 ```
+
+This builds once and launches `WinFlow.exe` detached (no console window). `run.cmd` does the same for cmd.exe. `dotnet run` also works for development.
 
 Run unit tests:
 
@@ -45,6 +46,15 @@ Publish a self-contained executable:
 ./scripts/publish.ps1
 ```
 
-## Configuration
+## The app
 
-WinFlow runs in the Windows system tray. Open the settings window from the tray menu to configure your API endpoint and credentials.
+WinFlow's main window is your voice-writing space:
+
+- **Home** — today's dictations and your lifetime stats (words, wpm, streak), counted on this PC only.
+- **History** — recent dictations as a reading timeline; copy any of them again.
+- **Snippets** — say a phrase, get the text ("my email" → you@example.com). Instant, no AI, works offline.
+- **Words** — your names and jargon; cleanup treats them as the correct spelling.
+- **Notes** — record a meeting (microphone + system audio, only while you record), get minutes and a full transcript, saved locally.
+- **Settings** (separate dialog) — General, System, AI & models, Privacy, Prompts. Saved changes apply immediately, no restart needed.
+
+WinFlow runs in the Windows system tray. Closing the main window hides it; dictation keeps working. Use **Quit WinFlow** in the tray menu to exit. Only one instance can run at a time; a second launch exits quietly. While a fullscreen game owns the screen, CapsLock passes through untouched (toggle in Settings → System).

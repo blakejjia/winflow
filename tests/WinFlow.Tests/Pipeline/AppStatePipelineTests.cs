@@ -91,7 +91,7 @@ public class AppStatePipelineTests
 
     private class MockSettingsService : ISettingsService
     {
-        public AppSettings Settings { get; set; } = new();
+        public AppSettings Settings { get; set; } = new() { GroqApiKey = "gsk_synthetic_test_key" };
         public Task<AppSettings> LoadSettingsAsync() => Task.FromResult(Settings);
         public Task SaveSettingsAsync(AppSettings settings)
         {
@@ -133,6 +133,100 @@ public class AppStatePipelineTests
         Assert.Single(appState.History);
         Assert.Equal("hello world from mock", appState.History[0].RawTranscript);
         Assert.Equal("Hello, world from mock.", appState.History[0].CleanedText);
+    }
+
+    private static AppState CreatePipeline(
+        MockAudioRecorder? audio = null,
+        MockKeyboardHook? hook = null,
+        MockTranscriptionService? transcription = null,
+        MockPostProcessingService? post = null,
+        MockTextInjector? injector = null,
+        MockSettingsService? settings = null)
+    {
+        return new AppState(
+            audio ?? new MockAudioRecorder(),
+            hook ?? new MockKeyboardHook(),
+            new MockContextService(),
+            transcription ?? new MockTranscriptionService(),
+            new MockContextVisionService(),
+            post ?? new MockPostProcessingService(),
+            injector ?? new MockTextInjector(),
+            settings ?? new MockSettingsService());
+    }
+
+    [Fact]
+    public async Task EscapeDuringRecording_CancelsWithoutInjection()
+    {
+        var audio = new MockAudioRecorder();
+        var hook = new MockKeyboardHook();
+        var injector = new MockTextInjector();
+        var appState = CreatePipeline(audio: audio, hook: hook, injector: injector);
+        await appState.InitializeAsync();
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        Assert.True(audio.IsRecording);
+
+        hook.Trigger(ShortcutAction.EscapePressed);
+        await appState.WaitForIdleAsync(2000);
+
+        Assert.Equal(PipelinePhase.Idle, appState.Phase);
+        // Recorder stop is fire-and-forget; allow it a moment to complete.
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (audio.IsRecording && sw.ElapsedMilliseconds < 2000) await Task.Delay(20);
+        Assert.False(audio.IsRecording);
+        Assert.Null(injector.InjectedText);
+        Assert.Empty(appState.History);
+    }
+
+    [Fact]
+    public async Task MissingApiKey_ReportsErrorAndDoesNotInject()
+    {
+        var hook = new MockKeyboardHook();
+        var injector = new MockTextInjector();
+        var settings = new MockSettingsService { Settings = new AppSettings() }; // no key
+        var appState = CreatePipeline(hook: hook, injector: injector, settings: settings);
+        await appState.InitializeAsync();
+
+        string? error = null;
+        appState.ErrorOccurred += m => error = m;
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        hook.Trigger(ShortcutAction.HoldReleased);
+        await appState.WaitForIdleAsync(5000);
+
+        Assert.Null(injector.InjectedText);
+        Assert.NotNull(error);
+        Assert.Contains("API key", error);
+    }
+
+    [Fact]
+    public async Task ErrorReset_DoesNotClobberNewRecording()
+    {
+        var hook = new MockKeyboardHook();
+        var settings = new MockSettingsService { Settings = new AppSettings() }; // no key -> error path
+        var appState = CreatePipeline(hook: hook, settings: settings);
+        await appState.InitializeAsync();
+
+        // Subscribe BEFORE triggering so the error phase cannot be missed.
+        var sawError = new TaskCompletionSource();
+        appState.PhaseChanged += p => { if (p == PipelinePhase.Error) sawError.TrySetResult(); };
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        hook.Trigger(ShortcutAction.HoldReleased);
+
+        // Wait for the error phase to appear, then start a NEW recording before the
+        // 1500ms error-reset timer fires. The timer must not reset the new run.
+        await Task.WhenAny(sawError.Task, Task.Delay(3000));
+        Assert.True(sawError.Task.IsCompleted, "expected error phase");
+
+        await appState.WaitForIdleAsync(5000);
+        hook.Trigger(ShortcutAction.HoldStarted);
+        Assert.Equal(PipelinePhase.Recording, appState.Phase);
+
+        await Task.Delay(1800); // outlive the stale error-reset timer
+        Assert.Equal(PipelinePhase.Recording, appState.Phase);
+
+        hook.Trigger(ShortcutAction.EscapePressed);
     }
 
     [Fact]
