@@ -324,7 +324,8 @@ public partial class MainWindow : FluentWindow
         NotePlaceholder.Visibility = Visibility.Collapsed;
         NoteTitleText.Text = note.Title;
         NoteSummaryCard.Visibility = Visibility.Visible;
-        NoteSummaryText.Text = note.Summary;
+        NoteSummaryMarkdown.Markdown = note.Summary;
+        NoteReadingTimeText.Text = Controls.MarkdownView.ReadingTime(note.Summary);
         NoteTranscriptLabel.Visibility = Visibility.Visible;
         NoteTranscriptText.Text = note.Transcript;
         CopyNoteButton.Visibility = Visibility.Visible;

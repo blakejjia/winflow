@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:controls="clr-namespace:WinFlow.Controls"
         Title="WinFlow"
         Width="1040" Height="720"
         MinWidth="860" MinHeight="560"
@@ -462,8 +463,10 @@
                                                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
                                                 <TextBlock Text="Minutes" FontSize="12" FontWeight="SemiBold" Margin="7,0,0,0" VerticalAlignment="Center"
                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                <TextBlock x:Name="NoteReadingTimeText" Text="" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
                                             </StackPanel>
-                                            <TextBlock x:Name="NoteSummaryText" TextWrapping="Wrap"/>
+                                            <controls:MarkdownView x:Name="NoteSummaryMarkdown"/>
                                         </StackPanel>
                                     </Border>
                                     <TextBlock x:Name="NoteTranscriptLabel" Text="Transcript" Style="{StaticResource SectionHeaderTextStyle}"
