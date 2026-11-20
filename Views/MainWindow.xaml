@@ -432,6 +432,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <!-- Header: editable title + date chip + actions -->
@@ -596,6 +597,57 @@
                                 <TextBlock Text="Or start a recording — the minutes will open here when they're ready."
                                            Style="{StaticResource EmptyStateBodyStyle}"/>
                             </StackPanel>
+
+                            <!-- Ask bar: Q&A over this note -->
+                            <Grid x:Name="NoteAskArea" Grid.Row="4" Visibility="Collapsed" Margin="0,10,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <ScrollViewer x:Name="NoteChatScroll" MaxHeight="260" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8">
+                                    <ItemsControl x:Name="NoteChatList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,0,0,10">
+                                                    <Border Background="{DynamicResource KeycapBackgroundBrush}"
+                                                            CornerRadius="10" Padding="12,7" HorizontalAlignment="Right"
+                                                            MaxWidth="420">
+                                                        <TextBlock Text="{Binding Question}" TextWrapping="Wrap"/>
+                                                    </Border>
+                                                    <Border Background="{DynamicResource SummaryCardBackgroundBrush}"
+                                                            BorderBrush="{DynamicResource SummaryCardBorderBrush}" BorderThickness="1"
+                                                            CornerRadius="10" Padding="12,8" Margin="0,6,0,0"
+                                                            HorizontalAlignment="Left" MaxWidth="520">
+                                                        <controls:MarkdownView Markdown="{Binding Answer}"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <Border Grid.Row="1" Background="{DynamicResource KeycapBackgroundBrush}"
+                                        BorderBrush="{DynamicResource KeycapBorderBrush}" BorderThickness="1"
+                                        CornerRadius="12" Padding="10,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ui:TextBox x:Name="NoteAskBox" BorderThickness="0" Background="Transparent"
+                                                    PlaceholderText="Ask anything about this meeting"
+                                                    KeyDown="NoteAskBox_KeyDown" VerticalAlignment="Center"/>
+                                        <ui:Button x:Name="NoteAskButton" Grid.Column="1" Click="NoteAsk_Click"
+                                                   Appearance="Primary" Padding="8,5" Margin="6,2,2,2"
+                                                   ToolTip="Ask (Enter)">
+                                            <ui:Button.Icon>
+                                                <ui:SymbolIcon Symbol="Send24"/>
+                                            </ui:Button.Icon>
+                                        </ui:Button>
+                                    </Grid>
+                                </Border>
+                            </Grid>
                         </Grid>
                     </Border>
                 </Grid>

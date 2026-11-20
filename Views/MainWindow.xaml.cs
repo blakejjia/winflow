@@ -26,6 +26,9 @@ public partial class MainWindow : FluentWindow
     private readonly IMeetingNotesService _notesService;
 
     private readonly ObservableCollection<VoiceMacro> _macroRows = new();
+    private readonly ObservableCollection<ChatTurn> _chatTurns = new();
+    private INoteChatService? _noteChat;
+    private CancellationTokenSource? _askCts;
     private MeetingNote? _selectedNote;
     private SettingsPanel? _settingsPanel;
     private string? _settingsCategory;
@@ -342,13 +345,91 @@ public partial class MainWindow : FluentWindow
         CopyNoteButton.Visibility = Visibility.Visible;
         ExportNoteButton.Visibility = Visibility.Visible;
         DeleteNoteButton.Visibility = Visibility.Visible;
+        _askCts?.Cancel();
+        _chatTurns.Clear();
+        NoteChatList.ItemsSource = _chatTurns;
+        NoteAskBox.Text = "";
+        NoteAskArea.Visibility = Visibility.Visible;
         TabSummary.IsChecked = true;
         UpdateNoteTabPanes(); // IsChecked may already be true -> Checked wouldn't fire
+    }
+
+    /// <summary>One Q/A pair in the note chat. Answer streams in via PropertyChanged.</summary>
+    public sealed class ChatTurn : INotifyPropertyChanged
+    {
+        private string _answer = "";
+        public string Question { get; init; } = "";
+        public string Answer
+        {
+            get => _answer;
+            set { _answer = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Answer))); }
+        }
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    private void NoteAskBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter && !System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            _ = AskNoteAsync();
+        }
+    }
+
+    private void NoteAsk_Click(object sender, RoutedEventArgs e) => _ = AskNoteAsync();
+
+    private async Task AskNoteAsync()
+    {
+        if (_selectedNote == null) return;
+        var question = NoteAskBox.Text.Trim();
+        if (question.Length == 0) return;
+        if (_askCts is { IsCancellationRequested: false }) return; // one question at a time
+
+        _noteChat ??= new NoteChatService(_httpClient, new FixedSettingsProvider(_appState.Settings));
+        var history = _chatTurns.Select(t => (t.Question, t.Answer)).ToList();
+        var turn = new ChatTurn { Question = question, Answer = "…" };
+        _chatTurns.Add(turn);
+        NoteAskBox.Text = "";
+        NoteAskBox.IsEnabled = false;
+        NoteAskButton.IsEnabled = false;
+        NoteChatScroll.ScrollToEnd();
+
+        _askCts?.Dispose();
+        _askCts = new CancellationTokenSource();
+        var answer = new System.Text.StringBuilder();
+        try
+        {
+            await foreach (var delta in _noteChat.AskAsync(_selectedNote, history, question, _askCts.Token))
+            {
+                answer.Append(delta);
+                turn.Answer = answer.ToString();
+                NoteChatScroll.ScrollToEnd();
+            }
+            if (answer.Length == 0) turn.Answer = "(No answer came back — try again.)";
+        }
+        catch (OperationCanceledException)
+        {
+            if (answer.Length > 0) turn.Answer = answer.ToString();
+            else _chatTurns.Remove(turn);
+        }
+        catch (Exception ex)
+        {
+            turn.Answer = $"Something went wrong: {ex.Message}";
+        }
+        finally
+        {
+            NoteAskBox.IsEnabled = true;
+            NoteAskButton.IsEnabled = true;
+            NoteAskBox.Focus();
+        }
     }
 
     private void ClearNoteDetail()
     {
         FlushThoughtsSave();
+        _askCts?.Cancel();
+        _chatTurns.Clear();
+        NoteAskArea.Visibility = Visibility.Collapsed;
         _selectedNote = null;
         NoteTitleText.Text = "";
         NoteDateChip.Visibility = Visibility.Collapsed;
