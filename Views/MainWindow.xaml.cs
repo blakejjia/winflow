@@ -308,10 +308,24 @@ public partial class MainWindow : FluentWindow
 
     private void RefreshNotesList()
     {
-        var notes = _notesService.Notes;
-        NotesList.ItemsSource = notes;
-        NotesEmpty.Visibility = notes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var all = _notesService.Notes;
+        var query = NotesSearchBox?.Text?.Trim() ?? "";
+        var filtered = query.Length == 0
+            ? all
+            : all.Where(n =>
+                n.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                n.Transcript.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                n.Summary.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var view = new System.Windows.Data.CollectionViewSource { Source = filtered };
+        view.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(MeetingNote.DateGroup)));
+        // Notes arrive newest-first; keep that order inside and across groups.
+        NotesList.ItemsSource = view.View;
+        NotesEmpty.Visibility = all.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        NotesNoMatches.Visibility = all.Count > 0 && filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private void NotesSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshNotesList();
 
     private void NoteItem_Click(object sender, RoutedEventArgs e)
     {

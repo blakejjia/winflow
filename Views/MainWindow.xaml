@@ -373,13 +373,14 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <ui:TextBlock FontTypography="Title" Text="Notes"/>
                         <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitleTextStyle}" Margin="0,4,0,16"
                                    Text="Record a meeting, get the minutes. Both sides of the call are captured — only while you record."/>
 
-                        <ui:CardControl x:Name="RecordCard" Grid.Row="2" Margin="0,0,0,16">
+                        <ui:CardControl x:Name="RecordCard" Grid.Row="2" Margin="0,0,0,12">
                             <ui:CardControl.Icon>
                                 <ui:SymbolIcon Symbol="Record24"/>
                             </ui:CardControl.Icon>
@@ -393,9 +394,28 @@
                             <ui:Button x:Name="RecordButton" Content="Start" Click="RecordToggle_Click" Appearance="Primary" Padding="14,5"/>
                         </ui:CardControl>
 
-                        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                        <ui:TextBox x:Name="NotesSearchBox" Grid.Row="3" Margin="0,0,0,10"
+                                    PlaceholderText="Search notes" ClearButtonEnabled="True"
+                                    TextChanged="NotesSearch_TextChanged">
+                            <ui:TextBox.Icon>
+                                <ui:SymbolIcon Symbol="Search24"/>
+                            </ui:TextBox.Icon>
+                        </ui:TextBox>
+
+                        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <ItemsControl x:Name="NotesList">
+                                    <ItemsControl.GroupStyle>
+                                        <GroupStyle>
+                                            <GroupStyle.HeaderTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold"
+                                                               Margin="2,12,0,6"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                                </DataTemplate>
+                                            </GroupStyle.HeaderTemplate>
+                                        </GroupStyle>
+                                    </ItemsControl.GroupStyle>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <ui:CardAction Margin="0,0,0,6" Click="NoteItem_Click" Tag="{Binding}">
@@ -405,7 +425,7 @@
                                                     <TextBlock FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0">
                                                         <Run Text="{Binding CreatedAt, StringFormat={}{0:MMM d, h:mm tt}, ConverterCulture=en-US, Mode=OneWay}"/>
                                                         <Run Text="·"/>
-                                                        <Run Text="{Binding Duration, StringFormat={}{0:mm\\:ss}, Mode=OneWay}"/>
+                                                        <Run Text="{Binding DurationLabel, Mode=OneWay}"/>
                                                     </TextBlock>
                                                 </StackPanel>
                                             </ui:CardAction>
@@ -416,6 +436,12 @@
                                     <ui:SymbolIcon Symbol="Notepad24" Style="{StaticResource EmptyStateIconStyle}"/>
                                     <TextBlock Text="No notes yet." Style="{StaticResource EmptyStateTitleStyle}"/>
                                     <TextBlock Text="Start a recording during your next call — minutes and transcript land here."
+                                               Style="{StaticResource EmptyStateBodyStyle}"/>
+                                </StackPanel>
+                                <StackPanel x:Name="NotesNoMatches" Margin="0,32,0,0" HorizontalAlignment="Center" Visibility="Collapsed">
+                                    <ui:SymbolIcon Symbol="Search24" Style="{StaticResource EmptyStateIconStyle}"/>
+                                    <TextBlock Text="No matching notes." Style="{StaticResource EmptyStateTitleStyle}"/>
+                                    <TextBlock Text="Search covers titles and the full transcript."
                                                Style="{StaticResource EmptyStateBodyStyle}"/>
                                 </StackPanel>
                             </StackPanel>

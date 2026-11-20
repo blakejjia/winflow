@@ -18,6 +18,26 @@ public class MeetingNote
 
     /// <summary>The user's own notes typed during/after the meeting. Never sent to the model.</summary>
     public string MyThoughts { get; set; } = string.Empty;
+
+    /// <summary>Duration as h:mm:ss (or m:ss under an hour) for list display.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DurationLabel => Duration.TotalHours >= 1
+        ? $"{(int)Duration.TotalHours}:{Duration.Minutes:D2}:{Duration.Seconds:D2}"
+        : $"{(int)Duration.TotalMinutes}:{Duration.Seconds:D2}";
+
+    /// <summary>Bucket label for the date-grouped notes list ("TODAY", "WED, NOV 18").</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DateGroup
+    {
+        get
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo("en-US");
+            var date = CreatedAt.Date;
+            if (date == DateTime.Today) return "TODAY";
+            if (date == DateTime.Today.AddDays(-1)) return "YESTERDAY";
+            return CreatedAt.ToString("ddd, MMM d", culture).ToUpperInvariant();
+        }
+    }
 }
 
 public interface IMeetingNotesService
@@ -174,6 +194,31 @@ public class MeetingNotesService : IMeetingNotesService
         return WavEncoder.EncodePcm16(slice, 16000, 1);
     }
 
+    internal const int SummaryChunkChars = 24000;
+
+    private const string MinutesSystemPrompt = """
+You write meeting minutes from a raw transcript. The transcript labels [You] for the
+local speaker and [Others] for everyone else on the call. Return only the minutes:
+a one-line topic, then short sections for Key points, Decisions, and Action items
+(with owners when stated). Use the transcript's language. Never invent facts that
+are not in the transcript; if a section has nothing, omit it. No preamble.
+""";
+
+    private const string PartialNotesPrompt = """
+You condense one part of a long meeting transcript into dense notes for a later
+summary pass. Keep every decision, number, name, date and action item; drop filler.
+The transcript labels [You] for the local speaker and [Others] for everyone else.
+Use the transcript's language. Return plain bullet points, no preamble.
+""";
+
+    private const string MergeSystemPrompt = """
+You write final meeting minutes from section-by-section notes of one long meeting
+(the sections are in chronological order). Merge them into a single set of minutes:
+a one-line topic, then short sections for Key points, Decisions, and Action items
+(with owners when stated). Deduplicate; keep every decision and commitment. Use the
+notes' language. Never invent facts; if a section has nothing, omit it. No preamble.
+""";
+
     private async Task<string> SummarizeAsync(string transcript, CancellationToken ct)
     {
         var settings = _settingsProvider.Current;
@@ -182,54 +227,90 @@ public class MeetingNotesService : IMeetingNotesService
             return "Add an API key in Settings to generate summaries. The full transcript is saved.";
         }
 
-        // Cap the transcript so a 2-hour meeting doesn't blow the context window.
-        const int maxChars = 24000;
-        var body = transcript.Length > maxChars
-            ? transcript[..maxChars] + "\n…(transcript truncated)"
-            : transcript;
-
-        var payload = new
-        {
-            model = string.IsNullOrWhiteSpace(settings.PostProcessingModel) ? "openai/gpt-oss-20b" : settings.PostProcessingModel,
-            messages = new object[]
-            {
-                new
-                {
-                    role = "system",
-                    content = """
-You write meeting minutes from a raw transcript. The transcript labels [You] for the
-local speaker and [Others] for everyone else on the call. Return only the minutes:
-a one-line topic, then short sections for Key points, Decisions, and Action items
-(with owners when stated). Use the transcript's language. Never invent facts that
-are not in the transcript; if a section has nothing, omit it. No preamble.
-"""
-                },
-                new { role = "user", content = body }
-            },
-            temperature = 0.2,
-            max_tokens = 1500
-        };
-
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"{settings.ApiBaseUrl.TrimEnd('/')}/chat/completions");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.GroqApiKey);
-            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-            using var response = await _httpClient.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode)
+            if (transcript.Length <= SummaryChunkChars)
+            {
+                return await ChatAsync(MinutesSystemPrompt, transcript, 1500, ct)
+                    ?? "Summary unavailable (the model request failed). The full transcript is saved.";
+            }
+
+            // Map-reduce: condense each section, then merge — a 2-hour meeting
+            // is fully covered instead of truncated at the first 24k chars.
+            var sections = SplitIntoSections(transcript, SummaryChunkChars);
+            var partials = new List<string>();
+            for (int i = 0; i < sections.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var part = await ChatAsync(PartialNotesPrompt, sections[i], 900, ct);
+                if (!string.IsNullOrWhiteSpace(part)) partials.Add(part);
+            }
+            if (partials.Count == 0)
             {
                 return "Summary unavailable (the model request failed). The full transcript is saved.";
             }
-            var json = await response.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()?.Trim()
-                ?? string.Empty;
+
+            var merged = string.Join("\n\n", partials);
+            // Guard against pathological meetings: keep the merge input bounded too.
+            if (merged.Length > SummaryChunkChars) merged = merged[..SummaryChunkChars];
+
+            return await ChatAsync(MergeSystemPrompt, merged, 1500, ct)
+                ?? "Summary unavailable (the model request failed). The full transcript is saved.";
         }
         catch (OperationCanceledException) { throw; }
         catch
         {
             return "Summary unavailable. The full transcript is saved.";
         }
+    }
+
+    /// <summary>Splits on paragraph boundaries near the size cap; never mid-word.</summary>
+    internal static List<string> SplitIntoSections(string text, int maxChars)
+    {
+        var sections = new List<string>();
+        int start = 0;
+        while (start < text.Length)
+        {
+            int remaining = text.Length - start;
+            if (remaining <= maxChars)
+            {
+                sections.Add(text[start..]);
+                break;
+            }
+            int cut = text.LastIndexOf("\n\n", start + maxChars, maxChars, StringComparison.Ordinal);
+            if (cut <= start) cut = text.LastIndexOf('\n', start + maxChars, maxChars);
+            if (cut <= start) cut = start + maxChars; // one giant paragraph: hard cut
+            sections.Add(text[start..cut]);
+            start = cut;
+            while (start < text.Length && text[start] == '\n') start++;
+        }
+        return sections;
+    }
+
+    /// <summary>One non-streaming chat call; null on HTTP failure.</summary>
+    private async Task<string?> ChatAsync(string systemPrompt, string userContent, int maxTokens, CancellationToken ct)
+    {
+        var settings = _settingsProvider.Current;
+        var payload = new
+        {
+            model = string.IsNullOrWhiteSpace(settings.PostProcessingModel) ? "openai/gpt-oss-20b" : settings.PostProcessingModel,
+            messages = new object[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userContent }
+            },
+            temperature = 0.2,
+            max_tokens = maxTokens
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{settings.ApiBaseUrl.TrimEnd('/')}/chat/completions");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.GroqApiKey);
+        request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        using var response = await _httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode) return null;
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()?.Trim();
     }
 
     private static string MakeTitle(string summary, string transcript)
