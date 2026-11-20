@@ -429,19 +429,35 @@
                         <Grid Margin="20,16,20,16">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <Grid Margin="0,0,0,12">
+
+                            <!-- Header: editable title + date chip + actions -->
+                            <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <ui:TextBlock x:Name="NoteTitleText" FontTypography="Subtitle" Text="" VerticalAlignment="Center"
-                                              TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                                <Grid VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <ui:TextBlock x:Name="NoteTitleText" FontTypography="Subtitle" Text=""
+                                                  TextTrimming="CharacterEllipsis" Cursor="Hand"
+                                                  ToolTip="Click to rename" MouseLeftButtonUp="NoteTitle_Click"/>
+                                    <ui:TextBox x:Name="NoteTitleBox" FontSize="20" FontWeight="SemiBold"
+                                                Visibility="Collapsed" Padding="6,2"
+                                                KeyDown="NoteTitleBox_KeyDown" LostFocus="NoteTitleBox_LostFocus"/>
+                                </Grid>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                     <ui:Button x:Name="CopyNoteButton" Content="Copy" Click="CopyNote_Click" Appearance="Transparent" Padding="10,3" Visibility="Collapsed">
                                         <ui:Button.Icon>
                                             <ui:SymbolIcon Symbol="Copy24"/>
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button x:Name="ExportNoteButton" Content="Export" Click="ExportNote_Click" Appearance="Transparent" Padding="10,3" Margin="4,0,0,0" Visibility="Collapsed"
+                                               ToolTip="Save as a Markdown file">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="ArrowDownload24"/>
                                         </ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button x:Name="DeleteNoteButton" Content="Delete" Click="DeleteNote_Click" Appearance="Transparent" Padding="10,3" Margin="4,0,0,0" Visibility="Collapsed">
@@ -451,31 +467,130 @@
                                     </ui:Button>
                                 </StackPanel>
                             </Grid>
-                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                                <StackPanel>
-                                    <Border x:Name="NoteSummaryCard" Visibility="Collapsed"
-                                            Background="{DynamicResource SummaryCardBackgroundBrush}"
-                                            BorderBrush="{DynamicResource SummaryCardBorderBrush}" BorderThickness="1"
-                                            CornerRadius="8" Padding="16,14">
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                <ui:SymbolIcon Symbol="Sparkle24" FontSize="14" VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
-                                                <TextBlock Text="Minutes" FontSize="12" FontWeight="SemiBold" Margin="7,0,0,0" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                                <TextBlock x:Name="NoteReadingTimeText" Text="" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
-                                            </StackPanel>
-                                            <controls:MarkdownView x:Name="NoteSummaryMarkdown"/>
+
+                            <Border x:Name="NoteDateChip" Grid.Row="1" Visibility="Collapsed" HorizontalAlignment="Left"
+                                    Background="{DynamicResource KeycapBackgroundBrush}"
+                                    BorderBrush="{DynamicResource KeycapBorderBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="8,2" Margin="0,0,0,12">
+                                <TextBlock x:Name="NoteDateText" FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                            </Border>
+
+                            <!-- Underline tabs: My thoughts | Transcript | Summary -->
+                            <StackPanel x:Name="NoteTabs" Grid.Row="2" Orientation="Horizontal" Visibility="Collapsed" Margin="0,0,0,4">
+                                <StackPanel.Resources>
+                                    <Style x:Key="NoteTabStyle" TargetType="RadioButton">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <Setter Property="FontSize" Value="14"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Margin" Value="0,0,22,0"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="RadioButton">
+                                                    <StackPanel Background="Transparent">
+                                                        <ContentPresenter Margin="2,6,2,7"/>
+                                                        <Border x:Name="Underline" Height="2.5" CornerRadius="1.5"
+                                                                Background="Transparent"/>
+                                                    </StackPanel>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            <Setter TargetName="Underline" Property="Background"
+                                                                    Value="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </StackPanel.Resources>
+                                <RadioButton x:Name="TabThoughts" Style="{StaticResource NoteTabStyle}" Content="My thoughts"
+                                             GroupName="NoteTabs" Checked="NoteTab_Checked"/>
+                                <RadioButton x:Name="TabTranscript" Style="{StaticResource NoteTabStyle}" Content="Transcript"
+                                             GroupName="NoteTabs" Checked="NoteTab_Checked"/>
+                                <RadioButton x:Name="TabSummary" Style="{StaticResource NoteTabStyle}"
+                                             GroupName="NoteTabs" Checked="NoteTab_Checked" IsChecked="True">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Sparkle24" FontSize="13" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                        <TextBlock Text="Summary"/>
+                                    </StackPanel>
+                                </RadioButton>
+                            </StackPanel>
+                            <Border x:Name="NoteTabsDivider" Grid.Row="2" VerticalAlignment="Bottom" Height="1"
+                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}" Visibility="Collapsed"/>
+
+                            <!-- SUMMARY tab -->
+                            <ScrollViewer x:Name="NoteSummaryPane" Grid.Row="3" VerticalScrollBarVisibility="Auto"
+                                          Visibility="Collapsed" Margin="0,12,0,0">
+                                <Border Background="{DynamicResource SummaryCardBackgroundBrush}"
+                                        BorderBrush="{DynamicResource SummaryCardBorderBrush}" BorderThickness="1"
+                                        CornerRadius="8" Padding="16,14" VerticalAlignment="Top">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <ui:SymbolIcon Symbol="Sparkle24" FontSize="14" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                            <TextBlock x:Name="NoteReadingTimeText" Text="" FontSize="11" FontWeight="SemiBold"
+                                                       Margin="7,0,0,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                         </StackPanel>
-                                    </Border>
-                                    <TextBlock x:Name="NoteTranscriptLabel" Text="Transcript" Style="{StaticResource SectionHeaderTextStyle}"
-                                               Margin="2,20,0,8" Visibility="Collapsed"/>
-                                    <TextBlock x:Name="NoteTranscriptText" TextWrapping="Wrap" LineHeight="22"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
+                                        <controls:MarkdownView x:Name="NoteSummaryMarkdown"/>
+                                    </StackPanel>
+                                </Border>
                             </ScrollViewer>
-                            <StackPanel x:Name="NotePlaceholder" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+
+                            <!-- TRANSCRIPT tab -->
+                            <Grid x:Name="NoteTranscriptPane" Grid.Row="3" Visibility="Collapsed" Margin="0,12,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="NoteTranscriptMeta" FontSize="11" FontWeight="SemiBold" Margin="2,0,0,10"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="NoteTranscriptBubbles">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource KeycapBackgroundBrush}"
+                                                        CornerRadius="10" Padding="12,8" Margin="0,0,0,8"
+                                                        HorizontalAlignment="Left">
+                                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" LineHeight="21"
+                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+
+                            <!-- MY THOUGHTS tab -->
+                            <Grid x:Name="NoteThoughtsPane" Grid.Row="3" Visibility="Collapsed" Margin="0,12,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Orientation="Horizontal" Margin="2,0,0,10">
+                                    <TextBlock Text="Your summary is ready." FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                    <ui:Button Content="Check it out →" Click="ThoughtsToSummary_Click"
+                                               Appearance="Transparent" Background="Transparent" BorderThickness="0"
+                                               Padding="4,0" Margin="2,0,0,0" Cursor="Hand" FontSize="12"
+                                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                                </StackPanel>
+                                <ui:TextBox x:Name="NoteThoughtsBox" Grid.Row="1" AcceptsReturn="True" TextWrapping="Wrap"
+                                            VerticalScrollBarVisibility="Auto" VerticalAlignment="Stretch"
+                                            PlaceholderText="Type what you're thinking — private to you, saved with the note."
+                                            TextChanged="NoteThoughts_TextChanged"/>
+                                <TextBlock Grid.Row="2" Text="My thoughts stay private — they're never included in exports or sent to the model."
+                                           FontSize="11" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                            </Grid>
+
+                            <StackPanel x:Name="NotePlaceholder" Grid.Row="3" VerticalAlignment="Center" HorizontalAlignment="Center">
                                 <ui:SymbolIcon Symbol="Notepad24" Style="{StaticResource EmptyStateIconStyle}"/>
                                 <TextBlock Text="Pick a note to read it." Style="{StaticResource EmptyStateTitleStyle}"/>
                                 <TextBlock Text="Or start a recording — the minutes will open here when they're ready."

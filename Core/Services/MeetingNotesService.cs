@@ -15,6 +15,9 @@ public class MeetingNote
     public TimeSpan Duration { get; set; }
     public string Transcript { get; set; } = string.Empty;
     public string Summary { get; set; } = string.Empty;
+
+    /// <summary>The user's own notes typed during/after the meeting. Never sent to the model.</summary>
+    public string MyThoughts { get; set; } = string.Empty;
 }
 
 public interface IMeetingNotesService
@@ -30,6 +33,9 @@ public interface IMeetingNotesService
     /// </summary>
     Task<MeetingNote> CreateNoteAsync(MeetingAudio audio, IProgress<string>? progress = null, CancellationToken ct = default);
     Task DeleteNoteAsync(Guid id);
+
+    /// <summary>Persists edits to an existing note (title, my thoughts).</summary>
+    Task UpdateNoteAsync(MeetingNote note);
 }
 
 public class MeetingNotesService : IMeetingNotesService
@@ -113,6 +119,19 @@ public class MeetingNotesService : IMeetingNotesService
     public async Task DeleteNoteAsync(Guid id)
     {
         lock (_gate) _notes.RemoveAll(n => n.Id == id);
+        await SaveAsync();
+        NotesChanged?.Invoke();
+    }
+
+    public async Task UpdateNoteAsync(MeetingNote note)
+    {
+        lock (_gate)
+        {
+            var existing = _notes.FirstOrDefault(n => n.Id == note.Id);
+            if (existing == null) return;
+            existing.Title = note.Title;
+            existing.MyThoughts = note.MyThoughts;
+        }
         await SaveAsync();
         NotesChanged?.Invoke();
     }
