@@ -26,6 +26,9 @@ public partial class MainWindow : FluentWindow
     private readonly IMeetingNotesService _notesService;
 
     private readonly ObservableCollection<VoiceMacro> _macroRows = new();
+    private readonly ObservableCollection<ChatTurn> _chatTurns = new();
+    private INoteChatService? _noteChat;
+    private CancellationTokenSource? _askCts;
     private MeetingNote? _selectedNote;
     private SettingsPanel? _settingsPanel;
     private string? _settingsCategory;
@@ -305,10 +308,24 @@ public partial class MainWindow : FluentWindow
 
     private void RefreshNotesList()
     {
-        var notes = _notesService.Notes;
-        NotesList.ItemsSource = notes;
-        NotesEmpty.Visibility = notes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var all = _notesService.Notes;
+        var query = NotesSearchBox?.Text?.Trim() ?? "";
+        var filtered = query.Length == 0
+            ? all
+            : all.Where(n =>
+                n.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                n.Transcript.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                n.Summary.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var view = new System.Windows.Data.CollectionViewSource { Source = filtered };
+        view.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(MeetingNote.DateGroup)));
+        // Notes arrive newest-first; keep that order inside and across groups.
+        NotesList.ItemsSource = view.View;
+        NotesEmpty.Visibility = all.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        NotesNoMatches.Visibility = all.Count > 0 && filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private void NotesSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshNotesList();
 
     private void NoteItem_Click(object sender, RoutedEventArgs e)
     {
@@ -320,15 +337,260 @@ public partial class MainWindow : FluentWindow
 
     private void SelectNote(MeetingNote note)
     {
+        FlushThoughtsSave();
         _selectedNote = note;
         NotePlaceholder.Visibility = Visibility.Collapsed;
         NoteTitleText.Text = note.Title;
-        NoteSummaryCard.Visibility = Visibility.Visible;
-        NoteSummaryText.Text = note.Summary;
-        NoteTranscriptLabel.Visibility = Visibility.Visible;
-        NoteTranscriptText.Text = note.Transcript;
+        NoteTitleText.Visibility = Visibility.Visible;
+        NoteTitleBox.Visibility = Visibility.Collapsed;
+        NoteDateChip.Visibility = Visibility.Visible;
+        NoteDateText.Text = note.CreatedAt.ToString("MMM d, yyyy · h:mm tt", System.Globalization.CultureInfo.GetCultureInfo("en-US"));
+        NoteTabs.Visibility = Visibility.Visible;
+        NoteTabsDivider.Visibility = Visibility.Visible;
+        NoteSummaryMarkdown.Markdown = note.Summary;
+        NoteReadingTimeText.Text = Controls.MarkdownView.ReadingTime(note.Summary);
+        NoteTranscriptBubbles.ItemsSource = SplitTranscript(note.Transcript);
+        NoteTranscriptMeta.Text =
+            $"{(int)note.Duration.TotalHours}:{note.Duration.Minutes:D2}:{note.Duration.Seconds:D2}" +
+            $" · {CountWords(note.Transcript):N0} WORDS";
+        _suppressThoughtsChange = true;
+        NoteThoughtsBox.Text = note.MyThoughts;
+        _suppressThoughtsChange = false;
         CopyNoteButton.Visibility = Visibility.Visible;
+        ExportNoteButton.Visibility = Visibility.Visible;
         DeleteNoteButton.Visibility = Visibility.Visible;
+        _askCts?.Cancel();
+        _chatTurns.Clear();
+        NoteChatList.ItemsSource = _chatTurns;
+        NoteAskBox.Text = "";
+        NoteAskArea.Visibility = Visibility.Visible;
+        TabSummary.IsChecked = true;
+        UpdateNoteTabPanes(); // IsChecked may already be true -> Checked wouldn't fire
+    }
+
+    /// <summary>One Q/A pair in the note chat. Answer streams in via PropertyChanged.</summary>
+    public sealed class ChatTurn : INotifyPropertyChanged
+    {
+        private string _answer = "";
+        public string Question { get; init; } = "";
+        public string Answer
+        {
+            get => _answer;
+            set { _answer = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Answer))); }
+        }
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    private void NoteAskBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter && !System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            _ = AskNoteAsync();
+        }
+    }
+
+    private void NoteAsk_Click(object sender, RoutedEventArgs e) => _ = AskNoteAsync();
+
+    private async Task AskNoteAsync()
+    {
+        if (_selectedNote == null) return;
+        var question = NoteAskBox.Text.Trim();
+        if (question.Length == 0) return;
+        if (_askCts is { IsCancellationRequested: false }) return; // one question at a time
+
+        _noteChat ??= new NoteChatService(_httpClient, new FixedSettingsProvider(_appState.Settings));
+        var history = _chatTurns.Select(t => (t.Question, t.Answer)).ToList();
+        var turn = new ChatTurn { Question = question, Answer = "…" };
+        _chatTurns.Add(turn);
+        NoteAskBox.Text = "";
+        NoteAskBox.IsEnabled = false;
+        NoteAskButton.IsEnabled = false;
+        NoteChatScroll.ScrollToEnd();
+
+        _askCts?.Dispose();
+        _askCts = new CancellationTokenSource();
+        var answer = new System.Text.StringBuilder();
+        try
+        {
+            await foreach (var delta in _noteChat.AskAsync(_selectedNote, history, question, _askCts.Token))
+            {
+                answer.Append(delta);
+                turn.Answer = answer.ToString();
+                NoteChatScroll.ScrollToEnd();
+            }
+            if (answer.Length == 0) turn.Answer = "(No answer came back — try again.)";
+        }
+        catch (OperationCanceledException)
+        {
+            if (answer.Length > 0) turn.Answer = answer.ToString();
+            else _chatTurns.Remove(turn);
+        }
+        catch (Exception ex)
+        {
+            turn.Answer = $"Something went wrong: {ex.Message}";
+        }
+        finally
+        {
+            NoteAskBox.IsEnabled = true;
+            NoteAskButton.IsEnabled = true;
+            NoteAskBox.Focus();
+        }
+    }
+
+    private void ClearNoteDetail()
+    {
+        FlushThoughtsSave();
+        _askCts?.Cancel();
+        _chatTurns.Clear();
+        NoteAskArea.Visibility = Visibility.Collapsed;
+        _selectedNote = null;
+        NoteTitleText.Text = "";
+        NoteDateChip.Visibility = Visibility.Collapsed;
+        NoteTabs.Visibility = Visibility.Collapsed;
+        NoteTabsDivider.Visibility = Visibility.Collapsed;
+        NoteSummaryPane.Visibility = Visibility.Collapsed;
+        NoteTranscriptPane.Visibility = Visibility.Collapsed;
+        NoteThoughtsPane.Visibility = Visibility.Collapsed;
+        NoteSummaryMarkdown.Markdown = "";
+        NoteTranscriptBubbles.ItemsSource = null;
+        _suppressThoughtsChange = true;
+        NoteThoughtsBox.Text = "";
+        _suppressThoughtsChange = false;
+        CopyNoteButton.Visibility = Visibility.Collapsed;
+        ExportNoteButton.Visibility = Visibility.Collapsed;
+        DeleteNoteButton.Visibility = Visibility.Collapsed;
+        NotePlaceholder.Visibility = Visibility.Visible;
+    }
+
+    private void NoteTab_Checked(object sender, RoutedEventArgs e)
+    {
+        if (NoteSummaryPane == null) return; // early Checked during InitializeComponent
+        UpdateNoteTabPanes();
+        if (TabThoughts.IsChecked != true) FlushThoughtsSave();
+    }
+
+    private void UpdateNoteTabPanes()
+    {
+        NoteSummaryPane.Visibility = TabSummary.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        NoteTranscriptPane.Visibility = TabTranscript.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        NoteThoughtsPane.Visibility = TabThoughts.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ThoughtsToSummary_Click(object sender, RoutedEventArgs e) => TabSummary.IsChecked = true;
+
+    /// <summary>
+    /// Splits the merged transcript into readable bubbles: speaker labels start
+    /// a new bubble, and long runs are broken on paragraph boundaries or every
+    /// few sentences. Purely visual — the stored transcript is untouched.
+    /// </summary>
+    internal static List<string> SplitTranscript(string transcript)
+    {
+        var bubbles = new List<string>();
+        if (string.IsNullOrWhiteSpace(transcript)) return bubbles;
+
+        foreach (var rawLine in transcript.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0) continue;
+
+            if (line.StartsWith('[')) // "[You]" / "[Others]" speaker label
+            {
+                bubbles.Add(line);
+                continue;
+            }
+
+            // Break long runs into ~2-3 sentence bubbles.
+            var sentences = System.Text.RegularExpressions.Regex.Split(line, @"(?<=[.!?。！？])\s+");
+            var current = new System.Text.StringBuilder();
+            int count = 0;
+            foreach (var s in sentences)
+            {
+                if (current.Length > 0) current.Append(' ');
+                current.Append(s);
+                if (++count >= 3 || current.Length >= 400)
+                {
+                    bubbles.Add(current.ToString());
+                    current.Clear();
+                    count = 0;
+                }
+            }
+            if (current.Length > 0) bubbles.Add(current.ToString());
+        }
+        return bubbles;
+    }
+
+    private static int CountWords(string text) =>
+        text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+
+    // ----- title rename -----
+
+    private void NoteTitle_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_selectedNote == null) return;
+        NoteTitleBox.Text = _selectedNote.Title;
+        NoteTitleText.Visibility = Visibility.Collapsed;
+        NoteTitleBox.Visibility = Visibility.Visible;
+        NoteTitleBox.Focus();
+        NoteTitleBox.SelectAll();
+    }
+
+    private void NoteTitleBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) { CommitTitleRename(); e.Handled = true; }
+        else if (e.Key == System.Windows.Input.Key.Escape) { EndTitleRename(); e.Handled = true; }
+    }
+
+    private void NoteTitleBox_LostFocus(object sender, RoutedEventArgs e) => CommitTitleRename();
+
+    private async void CommitTitleRename()
+    {
+        if (_selectedNote == null || NoteTitleBox.Visibility != Visibility.Visible) return;
+        var title = NoteTitleBox.Text.Trim();
+        EndTitleRename();
+        if (title.Length == 0 || title == _selectedNote.Title) return;
+        _selectedNote.Title = title;
+        NoteTitleText.Text = title;
+        await _notesService.UpdateNoteAsync(_selectedNote);
+    }
+
+    private void EndTitleRename()
+    {
+        NoteTitleBox.Visibility = Visibility.Collapsed;
+        NoteTitleText.Visibility = Visibility.Visible;
+    }
+
+    // ----- my thoughts (debounced autosave) -----
+
+    private bool _suppressThoughtsChange;
+    private readonly DispatcherTimer _thoughtsSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
+    private bool _thoughtsHooked;
+
+    private void NoteThoughts_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressThoughtsChange || _selectedNote == null) return;
+        if (!_thoughtsHooked)
+        {
+            _thoughtsHooked = true;
+            _thoughtsSaveTimer.Tick += async (_, _) => await SaveThoughtsAsync();
+        }
+        _thoughtsSaveTimer.Stop();
+        _thoughtsSaveTimer.Start();
+    }
+
+    private void FlushThoughtsSave()
+    {
+        if (_thoughtsSaveTimer.IsEnabled) _ = SaveThoughtsAsync();
+    }
+
+    private async Task SaveThoughtsAsync()
+    {
+        _thoughtsSaveTimer.Stop();
+        if (_selectedNote == null) return;
+        var text = NoteThoughtsBox.Text;
+        if (text == _selectedNote.MyThoughts) return;
+        _selectedNote.MyThoughts = text;
+        await _notesService.UpdateNoteAsync(_selectedNote);
     }
 
     private void CopyNote_Click(object sender, RoutedEventArgs e)
@@ -338,18 +600,41 @@ public partial class MainWindow : FluentWindow
         ShowSnackbar("Copied", "Minutes and transcript are on your clipboard.", ControlAppearance.Success, SymbolRegular.Copy24);
     }
 
+    private void ExportNote_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedNote == null) return;
+        var note = _selectedNote;
+        var safeName = string.Join("_", note.Title.Split(System.IO.Path.GetInvalidFileNameChars())).Trim();
+        if (safeName.Length == 0) safeName = "meeting-note";
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export note",
+            Filter = "Markdown (*.md)|*.md|Text file (*.txt)|*.txt",
+            FileName = safeName + ".md",
+            DefaultExt = ".md"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        // My thoughts are intentionally excluded from exports.
+        var content = $"# {note.Title}\n\n{note.CreatedAt:MMM d, yyyy · h:mm tt} · {(int)note.Duration.TotalMinutes} min\n\n{note.Summary}\n\n---\n\n## Transcript\n\n{note.Transcript}\n";
+        try
+        {
+            System.IO.File.WriteAllText(dialog.FileName, content);
+            ShowSnackbar("Exported", "The note was saved as Markdown.", ControlAppearance.Success, SymbolRegular.ArrowDownload24);
+        }
+        catch (Exception ex)
+        {
+            ShowSnackbar("Export failed", ex.Message, ControlAppearance.Danger, SymbolRegular.DismissCircle24);
+        }
+    }
+
     private async void DeleteNote_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedNote == null) return;
-        await _notesService.DeleteNoteAsync(_selectedNote.Id);
-        _selectedNote = null;
-        NoteTitleText.Text = "";
-        NoteSummaryCard.Visibility = Visibility.Collapsed;
-        NoteTranscriptLabel.Visibility = Visibility.Collapsed;
-        NoteTranscriptText.Text = "";
-        CopyNoteButton.Visibility = Visibility.Collapsed;
-        DeleteNoteButton.Visibility = Visibility.Collapsed;
-        NotePlaceholder.Visibility = Visibility.Visible;
+        var id = _selectedNote.Id;
+        ClearNoteDetail();
+        await _notesService.DeleteNoteAsync(id);
         RefreshNotesList();
     }
 
