@@ -2,6 +2,8 @@
 
 WinFlow is a native Windows desktop utility for speech-to-text dictation and in-place AI text editing. It captures audio using WASAPI, collects contextual signals from active Windows applications, and integrates with speech and language models for accurate transcription and formatting.
 
+![WinFlow Interface](docs/assets/winflow-interface.png)
+
 ## Key Features
 
 - **Push-to-Talk and Lock Mode**: Use CapsLock to control dictation. Hold down to talk, double-tap to lock recording, or press Shift+CapsLock to toggle standard capitalization.
@@ -45,6 +47,19 @@ Publish a self-contained executable:
 ```powershell
 ./scripts/publish.ps1
 ```
+
+### Release & Packaging
+
+Automated releases are built and published via GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)):
+
+- **Git Tag Trigger**: Push a tag matching `v*` (e.g. `git tag v1.0.0 && git push origin v1.0.0`).
+- **Manual Trigger**: Run the **Release WinFlow** workflow manually via GitHub Actions UI with custom version inputs.
+
+Each release generates and uploads:
+- **Setup Wizard Installer**: `WinFlow-vX.Y.Z-Setup.exe` (Inno Setup wizard with start menu/desktop shortcuts and uninstaller)
+- **Standalone Executable**: `WinFlow-vX.Y.Z-Portable.exe` (Self-contained single file)
+- **Portable Archive**: `WinFlow-vX.Y.Z-Portable.zip`
+- **Checksums**: `SHA256SUMS.txt`
 
 ## The app
 

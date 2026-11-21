@@ -53,12 +53,12 @@ public class MeetingNoteUpdateTests : IDisposable
     }
 
     [Fact]
-    public void OldNotesJson_WithoutMyThoughts_LoadsWithEmptyDefault()
+    public async Task OldNotesJson_WithoutMyThoughts_LoadsWithEmptyDefault()
     {
         File.WriteAllText(_tempFile,
             """[{"Id":"3f2504e0-4f89-11d3-9a0c-0305e82c3301","Title":"Legacy","Transcript":"t","Summary":"s"}]""");
         var service = NewService();
-        service.LoadAsync().GetAwaiter().GetResult();
+        await service.LoadAsync();
         var note = Assert.Single(service.Notes);
         Assert.Equal(string.Empty, note.MyThoughts);
     }

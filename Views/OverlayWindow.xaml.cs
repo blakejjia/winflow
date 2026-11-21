@@ -47,7 +47,6 @@ public partial class OverlayWindow : Window
     private double _dpiScale = 1.0;
     private int _leftPhys, _topPhys;
     private bool _hugTop = true;
-    private bool _layeredOk = true;
 
     public OverlayWindow(AppState appState)
     {
@@ -304,7 +303,6 @@ public partial class OverlayWindow : Window
             bool ok = UpdateLayeredWindow(_hwnd, screenDc, ref topPos, ref sizeNative, memDc, ref srcLoc, 0, ref blend, ULW_ALPHA);
             if (!ok)
             {
-                _layeredOk = false;
                 if (_pushCount < 3)
                 {
                     System.Diagnostics.Debug.WriteLine($"[WinFlow HUD] UpdateLayeredWindow failed: {Marshal.GetLastWin32Error()}");

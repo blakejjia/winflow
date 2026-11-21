@@ -105,7 +105,9 @@ TRANSCRIPT:
             yield break;
         }
 
-        using (response!)
+        if (response == null) yield break;
+
+        using (response)
         {
             if (!response.IsSuccessStatusCode)
             {

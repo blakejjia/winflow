@@ -1,0 +1,130 @@
+name: Release WinFlow
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '[0-9]+.*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag or version (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build & Release Package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve Version Information
+        shell: pwsh
+        run: |
+          $rawTag = "${{ github.event.inputs.tag_name }}"
+          if (-not $rawTag) {
+              $rawTag = "${{ github.ref_name }}"
+          }
+          if (-not $rawTag) {
+              $rawTag = "v1.0.0"
+          }
+          $cleanVersion = $rawTag.TrimStart('v')
+          "TAG_NAME=$rawTag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "APP_VERSION=$cleanVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Target Tag: $rawTag"
+          Write-Host "Target Version: $cleanVersion"
+
+      - name: Restore Dependencies
+        run: |
+          dotnet restore WinFlow.csproj -r win-x64
+          dotnet restore tests/WinFlow.Tests/WinFlow.Tests.csproj
+
+      - name: Run Unit Tests
+        run: dotnet test tests/WinFlow.Tests/WinFlow.Tests.csproj -c Release --no-restore --verbosity normal
+
+      - name: Publish Single-File Executable
+        run: |
+          dotnet publish WinFlow.csproj `
+            -c Release `
+            -r win-x64 `
+            --no-restore `
+            --self-contained true `
+            -m:1 `
+            -nr:false `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:Version=$env:APP_VERSION `
+            -p:AssemblyVersion=$env:APP_VERSION `
+            -p:FileVersion=$env:APP_VERSION `
+            -p:InformationalVersion=$env:TAG_NAME `
+            -o ./dist-single
+
+      - name: Prepare Staging Directory
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ./release-artifacts | Out-Null
+          
+          # 1. Standalone single executable
+          Copy-Item ./dist-single/WinFlow.exe ./release-artifacts/WinFlow-$env:TAG_NAME-Portable.exe
+          
+          # 2. Standalone zip package
+          Compress-Archive -Path ./dist-single/WinFlow.exe, ./README.md `
+            -DestinationPath ./release-artifacts/WinFlow-$env:TAG_NAME-Portable.zip -Force
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress
+
+      - name: Compile Setup Wizard
+        shell: pwsh
+        run: |
+          $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $isccPath)) {
+              $isccPath = (Get-Command iscc.exe -ErrorAction Stop).Source
+          }
+          
+          & $isccPath `
+            "/DAppVersion=$env:APP_VERSION" `
+            "/DSourceDir=$PWD\dist-single" `
+            "/DOutputDir=$PWD\release-artifacts" `
+            installer/winflow.iss
+
+      - name: Generate SHA256 Checksums
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path ./release-artifacts/*.exe, ./release-artifacts/*.zip
+          $checksums = foreach ($file in $artifacts) {
+              $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLower()
+              "$hash  $($file.Name)"
+          }
+          $checksums | Set-Content -Path ./release-artifacts/SHA256SUMS.txt -Encoding utf8
+          Get-Content ./release-artifacts/SHA256SUMS.txt
+
+      - name: Upload Artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: WinFlow ${{ env.TAG_NAME }}
+          generate_release_notes: true
+          files: |
+            ./release-artifacts/WinFlow-*-Setup.exe
+            ./release-artifacts/WinFlow-*-Portable.exe
+            ./release-artifacts/WinFlow-*-Portable.zip
+            ./release-artifacts/SHA256SUMS.txt
