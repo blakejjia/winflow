@@ -48,19 +48,56 @@ public class SystemTrayManager : IDisposable
 
     private static (Icon Icon, IntPtr HIcon) CreateAppIcon()
     {
+        try
+        {
+            var asm = typeof(SystemTrayManager).Assembly;
+            using var stream = asm.GetManifestResourceStream("WinFlow.Assets.app.ico")
+                ?? asm.GetManifestResourceStream("Assets.app.ico");
+            if (stream != null)
+            {
+                var icon = new Icon(stream, new Size(32, 32));
+                return (icon, IntPtr.Zero);
+            }
+
+            var localIco = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
+            if (System.IO.File.Exists(localIco))
+            {
+                var icon = new Icon(localIco, new Size(32, 32));
+                return (icon, IntPtr.Zero);
+            }
+        }
+        catch
+        {
+            // Fall through to procedural fallback
+        }
+
+        // Procedural Fluent squircle fallback with 7 HUD soundwave bars
         using var bitmap = new Bitmap(32, 32);
         using var g = Graphics.FromImage(bitmap);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        using var brush = new SolidBrush(Color.FromArgb(0, 120, 212));
-        g.FillEllipse(brush, 2, 2, 28, 28);
-        using var font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
-        using var textBrush = new SolidBrush(Color.White);
-        using var format = new StringFormat
+
+        // Base dark plate
+        using var plateBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
+            new PointF(0, 0), new PointF(32, 32),
+            Color.FromArgb(44, 51, 64), Color.FromArgb(18, 22, 29));
+        using var platePath = new System.Drawing.Drawing2D.GraphicsPath();
+        platePath.AddArc(2, 2, 8, 8, 180, 90);
+        platePath.AddArc(22, 2, 8, 8, 270, 90);
+        platePath.AddArc(22, 22, 8, 8, 0, 90);
+        platePath.AddArc(2, 22, 8, 8, 90, 90);
+        platePath.CloseFigure();
+        g.FillPath(plateBrush, platePath);
+
+        // Sound bars: 7 symmetric vertical bars
+        float[] heights = [3, 6, 9, 13, 9, 6, 3];
+        float[] xs = [7, 10, 13, 16, 19, 22, 25];
+        using var barBrush = new SolidBrush(Color.White);
+        for (int i = 0; i < 7; i++)
         {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
-        };
-        g.DrawString("W", font, textBrush, new RectangleF(0, 0, 32, 32), format);
+            float h = heights[i];
+            float y = 16 - (h / 2f);
+            g.FillRectangle(barBrush, xs[i], y, 2f, h);
+        }
 
         // Icon.FromHandle does NOT own the HICON; keep it and DestroyIcon on dispose.
         var hIcon = bitmap.GetHicon();

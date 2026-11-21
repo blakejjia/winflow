@@ -8,14 +8,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="tests\**;reference\**;docs\**" />
-    <EmbeddedResource Remove="tests\**;reference\**;docs\**" />
-    <None Remove="tests\**;reference\**;docs\**" />
-    <Page Remove="tests\**;reference\**;docs\**" />
+    <EmbeddedResource Include="Assets\app.ico" />
+    <Resource Include="Assets\logo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests\**;reference\**;docs\**;scripts\**" />
+    <EmbeddedResource Remove="tests\**;reference\**;docs\**;scripts\**" />
+    <None Remove="tests\**;reference\**;docs\**;scripts\**" />
+    <Page Remove="tests\**;reference\**;docs\**;scripts\**" />
   </ItemGroup>
 
   <ItemGroup>

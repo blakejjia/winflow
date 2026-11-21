@@ -1,0 +1,90 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Windows 11 Ambient Drop Shadow -->
+    <filter id="fluentShadow" x="-15%" y="-15%" width="130%" height="135%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.5"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+
+    <!-- Base Plate Glass Gradient (Dark Mica / Slate Blue) -->
+    <linearGradient id="plateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2c3340" stop-opacity="0.94"/>
+      <stop offset="50%" stop-color="#1f2530" stop-opacity="0.96"/>
+      <stop offset="100%" stop-color="#12161d" stop-opacity="0.98"/>
+    </linearGradient>
+
+    <!-- 1.5px Specular Rim Light -->
+    <linearGradient id="rimLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.65"/>
+      <stop offset="35%" stop-color="#88bce8" stop-opacity="0.3"/>
+      <stop offset="70%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#466282" stop-opacity="0.25"/>
+    </linearGradient>
+
+    <!-- Acoustic Caustic Bloom Beneath the Waveform -->
+    <radialGradient id="acousticCaustic" cx="50%" cy="52%" r="48%">
+      <stop offset="0%" stop-color="#0078d4" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#004e8c" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Soundwave Bar Frosted Ice Glass (Translucent White to Ice Blue) -->
+    <linearGradient id="barIceGlass" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="45%" stop-color="#ebf5ff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#a8d0f8" stop-opacity="0.65"/>
+    </linearGradient>
+
+    <!-- Center Key Soundwave Bar (Peak Clarity) -->
+    <linearGradient id="barPeakGlass" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="40%" stop-color="#e3f0fe" stop-opacity="0.96"/>
+      <stop offset="100%" stop-color="#6ea7e6" stop-opacity="0.75"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 1. Acoustic Caustic Glow -->
+  <ellipse cx="128" cy="132" rx="84" ry="46" fill="url(#acousticCaustic)"/>
+
+  <!-- 2. Windows 11 Squircle Acrylic Glass Base Plate -->
+  <rect x="28" y="28" width="200" height="200" rx="46" fill="url(#plateGrad)" filter="url(#fluentShadow)"/>
+  
+  <!-- 3. Specular Rim Border (1.5px Chamfer Reflection) -->
+  <rect x="28.75" y="28.75" width="198.5" height="198.5" rx="45.25" stroke="url(#rimLight)" stroke-width="1.5" fill="none"/>
+
+  <!-- 4. Subsurface Soft Acoustic Trench -->
+  <rect x="50" y="116" width="156" height="24" rx="12" fill="#000000" fill-opacity="0.35"/>
+  <rect x="50.5" y="116.5" width="155" height="23" rx="11.5" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1" fill="none"/>
+
+  <!-- 5. The 7 Symmetric HUD Soundwave Bars (Heights: [22, 42, 64, 88, 64, 42, 22]) -->
+  <!-- Bar 1 (Left, h=22, cy=128 => y=117) -->
+  <rect x="62" y="117" width="12" height="22" rx="6" fill="url(#barIceGlass)"/>
+  <rect x="62.75" y="117.75" width="10.5" height="20.5" rx="5.25" stroke="#ffffff" stroke-opacity="0.4" stroke-width="1" fill="none"/>
+
+  <!-- Bar 2 (h=42, cy=128 => y=107) -->
+  <rect x="82" y="107" width="12" height="42" rx="6" fill="url(#barIceGlass)"/>
+  <rect x="82.75" y="107.75" width="10.5" height="40.5" rx="5.25" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1" fill="none"/>
+
+  <!-- Bar 3 (h=64, cy=128 => y=96) -->
+  <rect x="102" y="96" width="12" height="64" rx="6" fill="url(#barIceGlass)"/>
+  <rect x="102.75" y="96.75" width="10.5" height="62.5" rx="5.25" stroke="#ffffff" stroke-opacity="0.5" stroke-width="1" fill="none"/>
+
+  <!-- Bar 4 (Center Peak Bar, h=88, cy=128 => y=84) -->
+  <rect x="122" y="84" width="12" height="88" rx="6" fill="url(#barPeakGlass)"/>
+  <rect x="122.75" y="84.75" width="10.5" height="86.5" rx="5.25" stroke="#ffffff" stroke-opacity="0.8" stroke-width="1" fill="none"/>
+
+  <!-- Bar 5 (h=64, cy=128 => y=96) -->
+  <rect x="142" y="96" width="12" height="64" rx="6" fill="url(#barIceGlass)"/>
+  <rect x="142.75" y="96.75" width="10.5" height="62.5" rx="5.25" stroke="#ffffff" stroke-opacity="0.5" stroke-width="1" fill="none"/>
+
+  <!-- Bar 6 (h=42, cy=128 => y=107) -->
+  <rect x="162" y="107" width="12" height="42" rx="6" fill="url(#barIceGlass)"/>
+  <rect x="162.75" y="107.75" width="10.5" height="40.5" rx="5.25" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1" fill="none"/>
+
+  <!-- Bar 7 (Right, h=22, cy=128 => y=117) -->
+  <rect x="182" y="117" width="12" height="22" rx="6" fill="url(#barIceGlass)"/>
+  <rect x="182.75" y="117.75" width="10.5" height="20.5" rx="5.25" stroke="#ffffff" stroke-opacity="0.4" stroke-width="1" fill="none"/>
+
+  <!-- Bottom Soft Curved Glass Reflection Sheen -->
+  <path d="M 46 190 Q 128 226 210 190" stroke="url(#rimLight)" stroke-width="1.2" stroke-opacity="0.3" fill="none"/>
+</svg>

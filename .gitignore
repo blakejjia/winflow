@@ -12,6 +12,7 @@ obj/
 
 # Publish output
 dist/
+dist-branding/
 publish/
 
 # Windows

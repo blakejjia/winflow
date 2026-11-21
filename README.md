@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets/Mic%20Sparkle/SVG/ic_fluent_mic_sparkle_24_filled.svg" width="72" height="72" alt="WinFlow Logo" />
+  <img src="docs/assets/app-logo.png" width="80" height="80" alt="WinFlow Logo" />
 </p>
 
 <h1 align="center">WinFlow</h1>

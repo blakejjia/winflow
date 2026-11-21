@@ -16,9 +16,12 @@ namespace WinFlow;
 public partial class App : System.Windows.Application
 {
     private const string SingleInstanceMutexName = @"Local\WinFlow_SingleInstance_Mutex";
+    private const string ShowMainEventName = @"Local\WinFlow_ShowMain_Event";
 
     private Mutex? _mutex;
     private bool _ownsMutex;
+    private EventWaitHandle? _showMainEvent;
+    private RegisteredWaitHandle? _showMainRegistration;
 
     private AppState? _appState;
     private OverlayWindow? _overlayWindow;
@@ -37,12 +40,39 @@ public partial class App : System.Windows.Application
         if (!_ownsMutex)
         {
             // Another instance owns the pipeline. Never run a second keyboard hook.
-            Debug.WriteLine("[WinFlow] Another instance is already running; exiting.");
+            // Ask the running instance to show its main window, then exit silently —
+            // launching again means "bring WinFlow to me", not "report an error".
+            Debug.WriteLine("[WinFlow] Another instance is already running; asking it to show itself.");
+            try
+            {
+                using var showEvent = EventWaitHandle.OpenExisting(ShowMainEventName);
+                showEvent.Set();
+            }
+            catch (Exception ex)
+            {
+                // The owner may be mid-startup or mid-shutdown; nothing to activate.
+                Debug.WriteLine($"[WinFlow] Could not signal existing instance: {ex.Message}");
+            }
             _mutex.Dispose();
             _mutex = null;
             Shutdown();
             return;
         }
+
+        // Primary instance: listen for activation requests from would-be second instances.
+        _showMainEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowMainEventName);
+        _showMainRegistration = ThreadPool.RegisterWaitForSingleObject(
+            _showMainEvent,
+            (_, timedOut) =>
+            {
+                if (!timedOut)
+                {
+                    Dispatcher.BeginInvoke(() => ShowMain());
+                }
+            },
+            state: null,
+            timeout: Timeout.InfiniteTimeSpan,
+            executeOnlyOnce: false);
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
@@ -219,6 +249,7 @@ public partial class App : System.Windows.Application
         }
         finally
         {
+            DisposeActivationListener();
             if (_ownsMutex)
             {
                 try { _mutex?.ReleaseMutex(); } catch (ApplicationException) { }
@@ -230,8 +261,17 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private void DisposeActivationListener()
+    {
+        _showMainRegistration?.Unregister(null);
+        _showMainRegistration = null;
+        _showMainEvent?.Dispose();
+        _showMainEvent = null;
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        DisposeActivationListener();
         if (_ownsMutex)
         {
             try { _mutex?.ReleaseMutex(); } catch (ApplicationException) { }
