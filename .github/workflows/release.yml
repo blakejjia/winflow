@@ -64,7 +64,6 @@ jobs:
           dotnet publish WinFlow.csproj `
             -c Release `
             -r win-x64 `
-            --no-restore `
             --self-contained true `
             -m:1 `
             -nr:false `
