@@ -38,9 +38,7 @@ public class ContextVisionService : IContextVisionService
         var endpoint = $"{baseUrl}/chat/completions";
         var model = !string.IsNullOrWhiteSpace(settings.ContextModel) ? settings.ContextModel : "qwen/qwen3.8-27b";
 
-        var systemPrompt = !string.IsNullOrWhiteSpace(settings.CustomContextPrompt)
-            ? settings.CustomContextPrompt
-            : PromptTemplates.ContextSynthesisPrompt;
+        var systemPrompt = PromptTemplates.ContextSynthesisPrompt;
 
         var textContent = $"Foreground App: {appName}\nWindow Title: {windowTitle}";
 

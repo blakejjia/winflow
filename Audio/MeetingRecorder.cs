@@ -13,6 +13,8 @@ public interface IMeetingRecorder : IDisposable
 {
     bool IsRecording { get; }
     TimeSpan Elapsed { get; }
+    /// <summary>Fires true when recording starts, false when it stops (Stop or Dispose). Raised off-lock.</summary>
+    event Action<bool>? RecordingChanged;
     void Start(string? microphoneId = null);
     Task<MeetingAudio> StopAsync();
 }
@@ -30,6 +32,8 @@ public class MeetingRecorder : IMeetingRecorder
     private DateTime _startedAt;
 
     public bool IsRecording { get { lock (_gate) return _recording; } }
+
+    public event Action<bool>? RecordingChanged;
 
     public TimeSpan Elapsed => IsRecording ? DateTime.UtcNow - _startedAt : TimeSpan.Zero;
 
@@ -95,6 +99,7 @@ public class MeetingRecorder : IMeetingRecorder
             _startedAt = DateTime.UtcNow;
             _recording = true;
         }
+        RecordingChanged?.Invoke(true);
     }
 
     public Task<MeetingAudio> StopAsync()
@@ -119,6 +124,7 @@ public class MeetingRecorder : IMeetingRecorder
             _sysPcm?.Dispose(); _sysPcm = null;
             duration = DateTime.UtcNow - _startedAt;
         }
+        RecordingChanged?.Invoke(false);
 
         // StopRecording waits for capture threads; keep it off the caller's thread.
         return Task.Run(() =>
@@ -137,14 +143,17 @@ public class MeetingRecorder : IMeetingRecorder
     {
         WasapiCapture? mic;
         WasapiLoopbackCapture? loopback;
+        bool wasRecording;
         lock (_gate)
         {
+            wasRecording = _recording;
             _recording = false;
             mic = _mic; _mic = null;
             loopback = _loopback; _loopback = null;
             _micPcm?.Dispose(); _micPcm = null;
             _sysPcm?.Dispose(); _sysPcm = null;
         }
+        if (wasRecording) RecordingChanged?.Invoke(false);
         mic?.Dispose();
         loopback?.Dispose();
     }

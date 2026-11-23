@@ -124,22 +124,35 @@ public partial class App : System.Windows.Application
         var previewIdx = Array.IndexOf(e.Args, "--preview-hud");
         if (previewIdx >= 0)
         {
+            // --preview-hud meeting previews the persistent meeting pill instead.
+            bool meeting = previewIdx + 1 < e.Args.Length && e.Args[previewIdx + 1] == "meeting";
             int seconds = previewIdx + 1 < e.Args.Length && int.TryParse(e.Args[previewIdx + 1], out var s) ? s : 8;
-            _ = PreviewHudAsync(seconds);
+            _ = PreviewHudAsync(seconds, meeting);
             return;
         }
 
-        _ = InitializeAsync();
+        // Login autostart ("Start with Windows") lands in the tray only.
+        bool startMinimized = Array.IndexOf(e.Args, "--minimized") >= 0;
+        _ = InitializeAsync(startMinimized);
     }
 
-    private async Task PreviewHudAsync(int seconds)
+    private async Task PreviewHudAsync(int seconds, bool meeting = false)
     {
         try
         {
             var overlay = new OverlayWindow(_appState!);
-            overlay.PreviewPhase(Core.Pipeline.PipelinePhase.Recording);
-            await Task.Delay(seconds * 1000);
-            overlay.PreviewPhase(Core.Pipeline.PipelinePhase.Idle);
+            if (meeting)
+            {
+                overlay.PreviewMeeting(true, TimeSpan.FromSeconds(65));
+                await Task.Delay(seconds * 1000);
+                overlay.PreviewMeeting(false);
+            }
+            else
+            {
+                overlay.PreviewPhase(Core.Pipeline.PipelinePhase.Recording);
+                await Task.Delay(seconds * 1000);
+                overlay.PreviewPhase(Core.Pipeline.PipelinePhase.Idle);
+            }
             await Task.Delay(400);
             overlay.CloseForShutdown();
         }
@@ -159,7 +172,7 @@ public partial class App : System.Windows.Application
         return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
 
-    private async Task InitializeAsync()
+    private async Task InitializeAsync(bool startMinimized = false)
     {
         try
         {
@@ -175,15 +188,18 @@ public partial class App : System.Windows.Application
                 Debug.WriteLine($"[WinFlow] Theme initialization failed: {ex.Message}");
             }
 
-            _overlayWindow = new OverlayWindow(_appState);
+            _overlayWindow = new OverlayWindow(_appState, _meetingRecorder);
             _trayManager = new SystemTrayManager(_appState);
 
             _trayManager.OpenSettingsRequested += () => ShowMain();
             _trayManager.OpenRunLogRequested += () => ShowMain(navigateToHistory: true);
             _trayManager.ExitRequested += () => _ = ShutdownAsync();
 
-            ShowMain();
-            if (_startupPage != null) _mainWindow?.ShowPage(_startupPage);
+            if (!startMinimized)
+            {
+                ShowMain();
+                if (_startupPage != null) _mainWindow?.ShowPage(_startupPage);
+            }
         }
         catch (Exception ex)
         {

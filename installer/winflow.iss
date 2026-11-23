@@ -51,6 +51,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+; Checked by default; the user can opt out. Portable builds never run this script,
+; so they only autostart if the user flips the in-app "Start with Windows" toggle.
+Name: "autostart"; Description: "Start WinFlow when Windows starts"
 
 [Files]
 Source: "{#SourceDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -60,5 +63,15 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
+[Registry]
+; Login autostart, per-user; written only when the task is checked (the default).
+; --minimized starts WinFlow in the tray; the in-app toggle writes the same format.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "WinFlow"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Tasks: autostart
+; Reinstall with the task unchecked removes a previously installed value.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "WinFlow"; Tasks: not autostart; Flags: deletevalue
+; Uninstall always removes the value, even if the in-app toggle (re)wrote it.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "WinFlow"; Flags: uninsdeletevalue
+
 [Run]
+; First launch after install shows the window (no --minimized) so the user can set up.
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

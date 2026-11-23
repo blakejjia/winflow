@@ -53,8 +53,15 @@ public partial class MainWindow : FluentWindow
         _recordClock.Tick += (_, _) =>
         {
             var e = _meetingRecorder.Elapsed;
-            RecordStatusText.Text = $"Recording {(int)e.TotalMinutes}:{e.Seconds:D2}";
+            SetRecordStatus($"Recording {(int)e.TotalMinutes}:{e.Seconds:D2}");
         };
+    }
+
+    /// <summary>Slim status line under the Start button; empty text hides it.</summary>
+    private void SetRecordStatus(string text)
+    {
+        RecordStatusText.Text = text;
+        RecordStatusText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
     }
 
     public void CloseForShutdown()
@@ -115,6 +122,7 @@ public partial class MainWindow : FluentWindow
         bool editable = tag is "Snippets" or "Words"
             || (tag == "Settings" && _settingsCategory != null);
         SaveButton.Visibility = editable ? Visibility.Visible : Visibility.Collapsed;
+        SaveFooter.Visibility = SaveButton.Visibility;
         SaveHintText.Text = editable ? "Changes apply after saving." : "";
 
         switch (tag)
@@ -264,7 +272,7 @@ public partial class MainWindow : FluentWindow
                 _meetingRecorder.Start(_appState.Settings.SelectedMicrophoneId);
                 RecordButton.Content = "Stop";
                 RecordButton.Appearance = ControlAppearance.Danger;
-                RecordHintText.Text = "Capturing both sides of the call";
+                SetRecordStatus("Recording 0:00");
                 _recordClock.Start();
             }
             catch (Exception ex)
@@ -279,13 +287,13 @@ public partial class MainWindow : FluentWindow
         _recordClock.Stop();
         RecordButton.IsEnabled = false;
         RecordButton.Content = "Working…";
-        RecordHintText.Text = "Transcribing and writing minutes";
+        SetRecordStatus("Transcribing and writing minutes");
 
         try
         {
             var audio = await _meetingRecorder.StopAsync();
-            RecordStatusText.Text = "Writing your note…";
-            var progress = new Progress<string>(msg => Dispatcher.BeginInvoke(() => RecordStatusText.Text = msg));
+            SetRecordStatus("Writing your note…");
+            var progress = new Progress<string>(msg => Dispatcher.BeginInvoke(() => SetRecordStatus(msg)));
             var note = await _notesService.CreateNoteAsync(audio, progress);
             RefreshNotesList();
             SelectNote(note);
@@ -301,8 +309,7 @@ public partial class MainWindow : FluentWindow
             RecordButton.IsEnabled = true;
             RecordButton.Content = "Start";
             RecordButton.Appearance = ControlAppearance.Primary;
-            RecordStatusText.Text = "Ready to record";
-            RecordHintText.Text = "Microphone + system audio";
+            SetRecordStatus("");
         }
     }
 
@@ -645,8 +652,7 @@ public partial class MainWindow : FluentWindow
         ("General", "General"),
         ("System", "System"),
         ("Ai", "AI & models"),
-        ("Privacy", "Privacy"),
-        ("Prompts", "Prompts")
+        ("Privacy", "Privacy")
     };
 
     private void ShowSettingsHome()
@@ -659,6 +665,7 @@ public partial class MainWindow : FluentWindow
         SettingsHome.Visibility = Visibility.Visible;
         SettingsDetailHost.Visibility = Visibility.Collapsed;
         SaveButton.Visibility = Visibility.Collapsed;
+        SaveFooter.Visibility = Visibility.Collapsed;
         SaveHintText.Text = "";
         AnimatePageIn(SettingsHome);
     }
@@ -691,6 +698,7 @@ public partial class MainWindow : FluentWindow
         SettingsHome.Visibility = Visibility.Collapsed;
         SettingsDetailHost.Visibility = Visibility.Visible;
         SaveButton.Visibility = Visibility.Visible;
+        SaveFooter.Visibility = Visibility.Visible;
         SaveHintText.Text = "Changes apply after saving.";
         AnimatePageIn(SettingsDetailHost);
     }

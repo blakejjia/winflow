@@ -57,9 +57,7 @@ CUSTOM_VOCABULARY: "{customVocabulary}"
         }
         else
         {
-            systemPrompt = !string.IsNullOrWhiteSpace(settings.CustomSystemPrompt)
-                ? settings.CustomSystemPrompt
-                : PromptTemplates.DefaultSystemPrompt;
+            systemPrompt = PromptTemplates.DefaultSystemPrompt;
 
             userMessage = $"""
 RAW_TRANSCRIPTION: "{rawTranscript}"

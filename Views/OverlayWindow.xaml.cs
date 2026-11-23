@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using WinFlow.Audio;
 using WinFlow.Core.Pipeline;
 
 namespace WinFlow.Views;
@@ -18,7 +19,14 @@ public partial class OverlayWindow : Window
 {
     private const double CapsuleWidth = 76;
     private const double CapsuleHeight = 30;
+    private const double MeetingWidth = 116;
     private const double CircleSize = 30;
+    // Idle presence: a slim horizontal bar parallel to the screen's top edge,
+    // at ~25% opacity so the user always knows WinFlow is running.
+    // All state changes morph/fade from wherever we are.
+    private const double IdleWidth = 34;
+    private const double IdleHeight = 8;
+    private const double IdleAlpha = 64;
     private const double ErrorWidth = 240;
     private const double ErrorHeight = 52;
     private static readonly TimeSpan MorphTime = TimeSpan.FromMilliseconds(180);
@@ -26,6 +34,12 @@ public partial class OverlayWindow : Window
     private static readonly TimeSpan FadeOutTime = TimeSpan.FromMilliseconds(360);
 
     private readonly AppState _appState;
+    private readonly IMeetingRecorder? _meetingRecorder;
+
+    // Meeting recording indicator: persistent pill while a meeting records.
+    private bool _meetingRecording;
+    private PipelinePhase _lastPhase = PipelinePhase.Idle;
+    private System.Windows.Threading.DispatcherTimer? _meetingClock;
 
     private IntPtr _hwnd;
     private System.Windows.Threading.DispatcherTimer? _frameTimer;
@@ -48,15 +62,26 @@ public partial class OverlayWindow : Window
     private int _leftPhys, _topPhys;
     private bool _hugTop = true;
 
-    public OverlayWindow(AppState appState)
+    public OverlayWindow(AppState appState, IMeetingRecorder? meetingRecorder = null)
     {
         InitializeComponent();
         _appState = appState;
+        _meetingRecorder = meetingRecorder;
 
         _appState.PhaseChanged += OnPhaseChanged;
         _appState.AudioLevelChanged += OnAudioLevelChanged;
         _appState.ErrorOccurred += OnErrorOccurred;
         _appState.NoticeRaised += OnNoticeRaised;
+        if (_meetingRecorder != null)
+        {
+            _meetingRecorder.RecordingChanged += OnMeetingRecordingChanged;
+        }
+
+        // The idle presence bar must exist from launch, not from the first
+        // CapsLock press. WPF defers HWND creation for a never-Shown window, so
+        // OnSourceInitialized (and the old lazy PushPixels path) never ran until
+        // a dictation phase. Create the layered surface explicitly here.
+        EnsureLayeredWindow();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -106,7 +131,24 @@ public partial class OverlayWindow : Window
 
         CenterAtTop();
         ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+
+        // First paint: snap straight to the fixed Idle definition, no animation.
+        SnapTo(IdleDef);
         PushPixels();
+    }
+
+    /// <summary>Applies a state definition instantly (first paint only).</summary>
+    private void SnapTo(HudStateDef def)
+    {
+        _hugTop = def.HugTop;
+        SetContent(waveform: def.Waveform, spinner: def.Spinner, advisory: def.Advisory, meeting: def.Meeting);
+        PillBorder.Width = def.W;
+        PillBorder.Height = def.H;
+        // Radius = half the SHORT side, or WPF clamps it into an ellipse.
+        PillBorder.CornerRadius = new CornerRadius(def.R);
+        System.Windows.Controls.Canvas.SetLeft(PillBorder, (RootCanvas.Width - def.W) / 2);
+        System.Windows.Controls.Canvas.SetTop(PillBorder, def.HugTop ? 0 : (RootCanvas.Height - def.H) / 2);
+        _alpha = def.Alpha;
     }
 
     public void CenterAtTop()
@@ -219,6 +261,11 @@ public partial class OverlayWindow : Window
         {
             Waveform.Tick();
         }
+        if (MeetingPanel.Visibility == Visibility.Visible)
+        {
+            MeetingWaveform.Tick();
+            animating = true;
+        }
 
         if (_alpha > 0.5 || animating)
         {
@@ -247,6 +294,7 @@ public partial class OverlayWindow : Window
         {
             EnsureLayeredWindow();
             if (_hwnd == IntPtr.Zero) return;
+            ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
         }
 
         // Layout in DIPs, raster at the monitor's DPI, present in physical pixels.
@@ -320,52 +368,114 @@ public partial class OverlayWindow : Window
     }
 
     // ---------- state machine ----------
+    //
+    // Every visual state is a FIXED definition (size, radius, opacity, content).
+    // Transitions only animate from the current pixels to the target definition —
+    // no state is ever derived from the previous one.
+
+    private enum HudState { Idle, Listening, Working, Advisory, Meeting }
+
+    private sealed record HudStateDef(
+        double W, double H, double R, double Alpha, bool HugTop,
+        bool Waveform = false, bool Spinner = false, bool Advisory = false, bool Meeting = false);
+
+    private static readonly HudStateDef IdleDef = new(IdleWidth, IdleHeight, IdleHeight / 2, IdleAlpha, HugTop: true);
+    private static readonly HudStateDef ListeningDef = new(CapsuleWidth, CapsuleHeight, CapsuleHeight / 2, 255, HugTop: true, Waveform: true);
+    private static readonly HudStateDef WorkingDef = new(CircleSize, CircleSize, CircleSize / 2, 128, HugTop: true, Spinner: true);
+    private static readonly HudStateDef AdvisoryDef = new(ErrorWidth, ErrorHeight, 14, 255, HugTop: false, Advisory: true);
+    private static readonly HudStateDef MeetingDef = new(MeetingWidth, CapsuleHeight, CapsuleHeight / 2, 255, HugTop: true, Meeting: true);
+
+    private HudState _state = HudState.Idle;
+
+    /// <summary>Animates the HUD to a fixed state definition.</summary>
+    private void TransitionTo(HudState state, TimeSpan? fadeTime = null)
+    {
+        var def = state switch
+        {
+            HudState.Listening => ListeningDef,
+            HudState.Working => WorkingDef,
+            HudState.Advisory => AdvisoryDef,
+            HudState.Meeting => MeetingDef,
+            _ => IdleDef
+        };
+        _state = state;
+        _hugTop = def.HugTop;
+        if (state == HudState.Listening) Waveform.AudioLevel = 0;
+        if (state == HudState.Meeting) MeetingWaveform.AudioLevel = 0;
+        SetContent(waveform: def.Waveform, spinner: def.Spinner, advisory: def.Advisory, meeting: def.Meeting);
+        MorphTo(def.W, def.H, def.R);
+        FadeTo(def.Alpha, fadeTime ?? (def.Alpha >= _alpha ? FadeInTime : FadeOutTime));
+    }
+
+    /// <summary>Which fixed state should own the HUD right now.</summary>
+    private HudState ResolveState()
+    {
+        if (_lastPhase == PipelinePhase.Error) return HudState.Advisory;
+        if (_lastPhase is PipelinePhase.Recording) return HudState.Listening;
+        if (_lastPhase is PipelinePhase.Transcribing or PipelinePhase.Inserting) return HudState.Working;
+        if (_meetingRecording) return HudState.Meeting;
+        return HudState.Idle;
+    }
 
     private void OnPhaseChanged(PipelinePhase phase)
     {
         Dispatcher.BeginInvoke(() =>
         {
-            switch (phase)
-            {
-                case PipelinePhase.Recording:
-                    Waveform.AudioLevel = 0;
-                    _hugTop = true;
-                    SetContent(waveform: true);
-                    MorphTo(CapsuleWidth, CapsuleHeight, CapsuleHeight / 2);
-                    FadeTo(255, FadeInTime);
-                    break;
-
-                case PipelinePhase.Transcribing:
-                case PipelinePhase.Inserting:
-                    _hugTop = true;
-                    SetContent(spinner: true);
-                    MorphTo(CircleSize, CircleSize, CircleSize / 2);
-                    // Dim to 50% while working; the final fade-out then runs 50% -> 0.
-                    FadeTo(128, FadeInTime);
-                    break;
-
-                case PipelinePhase.Error:
-                    _hugTop = false;
-                    SetContent(advisory: true);
-                    MorphTo(ErrorWidth, ErrorHeight, 14);
-                    FadeTo(255, FadeInTime);
-                    break;
-
-                case PipelinePhase.Feedback:
-                case PipelinePhase.Idle:
-                default:
-                    MorphTo(CircleSize, CircleSize, CircleSize / 2);
-                    FadeTo(0, FadeOutTime, onCompleted: () => PushPixels());
-                    break;
-            }
+            _lastPhase = phase;
+            TransitionTo(ResolveState());
         });
     }
 
-    private void SetContent(bool waveform = false, bool spinner = false, bool advisory = false)
+    // ---------- meeting recording indicator ----------
+
+    private void OnMeetingRecordingChanged(bool recording)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _meetingRecording = recording;
+            if (recording)
+            {
+                UpdateMeetingTime();
+                if (_meetingClock == null)
+                {
+                    _meetingClock = new System.Windows.Threading.DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromSeconds(1)
+                    };
+                    _meetingClock.Tick += (_, _) => UpdateMeetingTime();
+                }
+                _meetingClock.Start();
+            }
+            else
+            {
+                _meetingClock?.Stop();
+            }
+            TransitionTo(ResolveState());
+        });
+    }
+
+    private void UpdateMeetingTime()
+    {
+        var e = _meetingRecorder?.Elapsed ?? TimeSpan.Zero;
+        MeetingTimeText.Text = $"{(int)e.TotalMinutes}:{e.Seconds:D2}";
+    }
+
+    /// <summary>Test/preview hook for the meeting pill, without any audio capture.</summary>
+    internal void PreviewMeeting(bool recording, TimeSpan elapsed = default)
+    {
+        OnMeetingRecordingChanged(recording);
+        Dispatcher.BeginInvoke(() =>
+        {
+            MeetingTimeText.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
+        });
+    }
+
+    private void SetContent(bool waveform = false, bool spinner = false, bool advisory = false, bool meeting = false)
     {
         Waveform.Visibility = waveform ? Visibility.Visible : Visibility.Collapsed;
         TranscribingPanel.Visibility = spinner ? Visibility.Visible : Visibility.Collapsed;
         AdvisoryPanel.Visibility = advisory ? Visibility.Visible : Visibility.Collapsed;
+        MeetingPanel.Visibility = meeting ? Visibility.Visible : Visibility.Collapsed;
         if (!advisory)
         {
             ElevatedBadge.Visibility = Visibility.Collapsed;
@@ -401,6 +511,9 @@ public partial class OverlayWindow : Window
         Dispatcher.BeginInvoke(() =>
         {
             Waveform.AudioLevel = level;
+            // During a meeting the mic is live too — feed the same level so the
+            // meeting pill's bars dance exactly like the dictation capsule.
+            MeetingWaveform.AudioLevel = level;
         });
     }
 
@@ -410,11 +523,8 @@ public partial class OverlayWindow : Window
         {
             if (notice == PipelineNotice.TargetElevated)
             {
-                _hugTop = false;
-                SetContent(advisory: true);
+                TransitionTo(HudState.Advisory);
                 ElevatedBadge.Visibility = Visibility.Visible;
-                MorphTo(ErrorWidth, ErrorHeight, 14);
-                FadeTo(255, FadeInTime);
             }
             else
             {
@@ -436,6 +546,7 @@ public partial class OverlayWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _frameTimer?.Stop();
+        _meetingClock?.Stop();
         if (_hwnd != IntPtr.Zero)
         {
             DestroyWindow(_hwnd);
@@ -445,6 +556,10 @@ public partial class OverlayWindow : Window
         _appState.AudioLevelChanged -= OnAudioLevelChanged;
         _appState.ErrorOccurred -= OnErrorOccurred;
         _appState.NoticeRaised -= OnNoticeRaised;
+        if (_meetingRecorder != null)
+        {
+            _meetingRecorder.RecordingChanged -= OnMeetingRecordingChanged;
+        }
         base.OnClosed(e);
     }
 

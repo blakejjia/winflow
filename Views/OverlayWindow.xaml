@@ -42,6 +42,17 @@
                     </Path>
                 </Grid>
 
+                <!-- Meeting recording: same dancing-lines capsule as dictation,
+                     with an elapsed-time clock added on the left. -->
+                <StackPanel x:Name="MeetingPanel" Visibility="Collapsed" Orientation="Horizontal"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock x:Name="MeetingTimeText" Text="0:00" Margin="0,0,8,0"
+                               Foreground="#FFFFFFFF" FontSize="11" FontWeight="SemiBold"
+                               FontFamily="Segoe UI Variable Text, Segoe UI"
+                               VerticalAlignment="Center"/>
+                    <controls:WaveformVisualizer x:Name="MeetingWaveform" VerticalAlignment="Center"/>
+                </StackPanel>
+
                 <!-- Safety advisories only -->
                 <StackPanel x:Name="AdvisoryPanel" Visibility="Collapsed"
                             VerticalAlignment="Center" Margin="12,0">

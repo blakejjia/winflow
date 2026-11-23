@@ -5,7 +5,6 @@ using System.Windows.Controls;
 using WinFlow.Audio;
 using WinFlow.Core.Models;
 using WinFlow.Core.Pipeline;
-using WinFlow.Core.Prompts;
 using WinFlow.Core.Services;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
@@ -13,7 +12,7 @@ using Wpf.Ui.Controls;
 namespace WinFlow.Views;
 
 /// <summary>
-/// One settings pane (General / System / AI / Privacy / Prompts), hosted inside
+/// One settings pane (General / System / AI / Privacy), hosted inside
 /// the main window under a breadcrumb. Pure view over the app-lifetime AppState.
 /// </summary>
 public partial class SettingsPanel : System.Windows.Controls.UserControl
@@ -22,6 +21,7 @@ public partial class SettingsPanel : System.Windows.Controls.UserControl
     private readonly HttpClient _httpClient;
     private string _currentApiKey = string.Empty;
     private bool _loadingSettings;
+    private bool _autostartLoadedState;
     private IReadOnlyList<ModelInfo> _models = Array.Empty<ModelInfo>();
     private bool _modelsLoading;
 
@@ -33,10 +33,10 @@ public partial class SettingsPanel : System.Windows.Controls.UserControl
         Loaded += OnPanelLoaded;
     }
 
-    /// <summary>Shows one pane by tag: General / System / Ai / Privacy / Prompts.</summary>
+    /// <summary>Shows one pane by tag: General / System / Ai / Privacy.</summary>
     public void ShowPane(string tag)
     {
-        foreach (var pane in new[] { PaneGeneral, PaneSystem, PaneAi, PanePrivacy, PanePrompts })
+        foreach (var pane in new[] { PaneGeneral, PaneSystem, PaneAi, PanePrivacy })
         {
             pane.Visibility = pane.Name == $"Pane{tag}" ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -101,20 +101,16 @@ public partial class SettingsPanel : System.Windows.Controls.UserControl
             ContextCaptureCheckBox.IsChecked = s.ContextCaptureEnabled;
             PauseGamesCheckBox.IsChecked = s.PauseInFullscreenGames;
 
+            // The registry Run value is the source of truth (installer task or in-app toggle).
+            _autostartLoadedState = AutostartService.IsEnabled();
+            AutostartCheckBox.IsChecked = _autostartLoadedState;
+
             ThemeComboBox.SelectedIndex = s.Theme switch { "Dark" => 1, "Light" => 2, _ => 0 };
 
             TranscriptionModelBox.Text = s.TranscriptionModel;
             PostProcessingModelBox.Text = s.PostProcessingModel;
             FallbackModelBox.Text = s.PostProcessingFallbackModel;
             ContextModelBox.Text = s.ContextModel;
-
-            SystemPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomSystemPrompt)
-                ? s.CustomSystemPrompt
-                : PromptTemplates.DefaultSystemPrompt;
-
-            ContextPromptBox.Text = !string.IsNullOrWhiteSpace(s.CustomContextPrompt)
-                ? s.CustomContextPrompt
-                : PromptTemplates.ContextSynthesisPrompt;
 
             PopulateMicrophones(s.SelectedMicrophoneId);
         }
@@ -181,14 +177,26 @@ public partial class SettingsPanel : System.Windows.Controls.UserControl
         var selectedMic = (MicComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
         s.SelectedMicrophoneId = selectedMic ?? string.Empty;
 
-        var customSys = SystemPromptBox.Text.Trim();
-        s.CustomSystemPrompt = (customSys == PromptTemplates.DefaultSystemPrompt) ? string.Empty : customSys;
-
-        var customCtx = ContextPromptBox.Text.Trim();
-        s.CustomContextPrompt = (customCtx == PromptTemplates.ContextSynthesisPrompt) ? string.Empty : customCtx;
-
         await _appState.SaveSettingsAsync(s);
         _appState.ApplyShortcutSettings();
+
+        // Only touch the registry when the toggle actually changed, so a Save from
+        // another pane never rewrites the installer's Run value.
+        var autostartWanted = AutostartCheckBox.IsChecked ?? false;
+        if (autostartWanted != _autostartLoadedState)
+        {
+            try
+            {
+                AutostartService.SetEnabled(autostartWanted);
+                _autostartLoadedState = autostartWanted;
+            }
+            catch (Exception ex)
+            {
+                AutostartCheckBox.IsChecked = _autostartLoadedState; // revert UI to actual state
+                ShowSnackbar("Couldn't update startup setting", ex.Message, ControlAppearance.Danger, SymbolRegular.DismissCircle24);
+                return; // settings are already saved; keep the failure visible
+            }
+        }
 
         ShowSnackbar("Saved", "Changes apply to your next dictation — no restart needed.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
     }
@@ -317,18 +325,6 @@ public partial class SettingsPanel : System.Windows.Controls.UserControl
         {
             sender.Text = id;
         }
-    }
-
-    // ---------- prompts ----------
-
-    private void ResetSystemPrompt_Click(object sender, RoutedEventArgs e)
-    {
-        SystemPromptBox.Text = PromptTemplates.DefaultSystemPrompt;
-    }
-
-    private void ResetContextPrompt_Click(object sender, RoutedEventArgs e)
-    {
-        ContextPromptBox.Text = PromptTemplates.ContextSynthesisPrompt;
     }
 
     private System.Windows.Threading.DispatcherTimer? _infoBarTimer;

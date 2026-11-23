@@ -74,6 +74,19 @@
 
                         <ui:CardControl Margin="0,0,0,8">
                             <ui:CardControl.Icon>
+                                <ui:SymbolIcon Symbol="Power24"/>
+                            </ui:CardControl.Icon>
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Start with Windows" Style="{StaticResource SettingTitleTextStyle}"/>
+                                    <TextBlock Text="WinFlow starts quietly in the tray when you sign in." Style="{StaticResource SettingDescriptionTextStyle}"/>
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch x:Name="AutostartCheckBox"/>
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Icon>
                                 <ui:SymbolIcon Symbol="Games24"/>
                             </ui:CardControl.Icon>
                             <ui:CardControl.Header>
@@ -256,28 +269,6 @@
                     </StackPanel>
                 </ScrollViewer>
 
-<ScrollViewer x:Name="PanePrompts" VerticalScrollBarVisibility="Auto" Padding="0,4,0,4">
-                    <StackPanel HorizontalAlignment="Stretch">
-                        <TextBlock Style="{StaticResource PageSubtitleTextStyle}" Margin="0,0,0,20"
-                                      Text="The instructions behind cleanup and context. The defaults are battle-tested — edit only if you need to."/>
-
-                        <DockPanel Margin="0,0,0,8">
-                            <ui:TextBlock FontTypography="BodyStrong" Text="Cleanup system prompt" VerticalAlignment="Center"/>
-                            <ui:Button Content="Reset" Click="ResetSystemPrompt_Click" HorizontalAlignment="Right"
-                                       Appearance="Transparent" Padding="8,2"/>
-                        </DockPanel>
-                        <ui:TextBox x:Name="SystemPromptBox" Height="180" AcceptsReturn="True" TextWrapping="Wrap"
-                                    VerticalContentAlignment="Top" FontFamily="Consolas" FontSize="12" Margin="0,0,0,20"/>
-
-                        <DockPanel Margin="0,0,0,8">
-                            <ui:TextBlock FontTypography="BodyStrong" Text="Context vision prompt" VerticalAlignment="Center"/>
-                            <ui:Button Content="Reset" Click="ResetContextPrompt_Click" HorizontalAlignment="Right"
-                                       Appearance="Transparent" Padding="8,2"/>
-                        </DockPanel>
-                        <ui:TextBox x:Name="ContextPromptBox" Height="130" AcceptsReturn="True" TextWrapping="Wrap"
-                                    VerticalContentAlignment="Top" FontFamily="Consolas" FontSize="12"/>
-                    </StackPanel>
-                </ScrollViewer>
         </Grid>
 
         <ui:InfoBar x:Name="StatusInfoBar" Grid.Row="0"

@@ -13,22 +13,24 @@ namespace WinFlow.Controls;
 /// </summary>
 public class WaveformVisualizer : StackPanel
 {
-    private const int BarCount = 7;
+    private const int BarCount = 11;
     private const double BarMinHeight = 3.0;
     private const double BarMaxHeight = 17.0;
     private const double SlotHeight = BarMaxHeight + 4;
-    private const double SlotWidth = 6.0;
-    private const double BarWidth = 3.0;
+    // 11 slots keep the same total width as the old 7×6 layout (42 DIPs):
+    // thinner bars, tighter gaps.
+    private const double SlotWidth = 42.0 / BarCount;
+    private const double BarWidth = 2.0;
 
     private readonly WpfRectangle[] _bars = new WpfRectangle[BarCount];
 
     // Two incommensurate periods per bar: their sum never repeats visibly, so the
     // row shimmers organically instead of sweeping left-to-right like one wave.
-    private static readonly double[] PeriodA = { 1.71, 2.33, 1.94, 2.12, 1.53, 2.47, 1.82 };
-    private static readonly double[] PeriodB = { 0.83, 1.09, 0.71, 1.31, 0.97, 0.67, 1.17 };
-    private static readonly double[] PhaseA  = { 0.0, 1.3, 2.6, 0.7, 1.9, 4.1, 5.3 };
-    private static readonly double[] PhaseB  = { 2.1, 0.4, 5.0, 3.3, 1.1, 2.8, 0.9 };
-    private static readonly double[] LevelWeight = { 0.65, 0.85, 0.95, 1.0, 0.9, 0.8, 0.6 };
+    private static readonly double[] PeriodA = { 1.71, 2.33, 1.94, 2.12, 1.53, 2.47, 1.82, 2.05, 1.66, 2.29, 1.88 };
+    private static readonly double[] PeriodB = { 0.83, 1.09, 0.71, 1.31, 0.97, 0.67, 1.17, 0.89, 1.23, 0.77, 1.05 };
+    private static readonly double[] PhaseA  = { 0.0, 1.3, 2.6, 0.7, 1.9, 4.1, 5.3, 2.2, 3.6, 0.4, 4.8 };
+    private static readonly double[] PhaseB  = { 2.1, 0.4, 5.0, 3.3, 1.1, 2.8, 0.9, 4.4, 1.7, 5.6, 3.0 };
+    private static readonly double[] LevelWeight = { 0.55, 0.7, 0.82, 0.92, 0.98, 1.0, 0.97, 0.9, 0.78, 0.66, 0.5 };
 
     private readonly double[] _drift = new double[BarCount];
     private readonly double[] _driftTarget = new double[BarCount];

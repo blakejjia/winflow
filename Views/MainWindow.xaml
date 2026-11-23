@@ -363,7 +363,7 @@
                 <!-- ================= NOTES ================= -->
                 <Grid x:Name="PageNotes" Grid.Row="0" Visibility="Collapsed" Margin="32,12,32,24">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="240"/>
                         <ColumnDefinition Width="24"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
@@ -376,23 +376,22 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <ui:TextBlock FontTypography="Title" Text="Notes"/>
-                        <TextBlock Grid.Row="1" Style="{StaticResource PageSubtitleTextStyle}" Margin="0,4,0,16"
-                                   Text="Record a meeting, get the minutes. Both sides of the call are captured — only while you record."/>
+                        <ui:TextBlock FontTypography="Title" Text="Notes" Margin="0,0,0,12"/>
 
-                        <ui:CardControl x:Name="RecordCard" Grid.Row="2" Margin="0,0,0,12">
-                            <ui:CardControl.Icon>
-                                <ui:SymbolIcon Symbol="Record24"/>
-                            </ui:CardControl.Icon>
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock x:Name="RecordStatusText" Text="Ready to record" FontWeight="Medium"/>
-                                    <TextBlock x:Name="RecordHintText" Text="Microphone + system audio" FontSize="12"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <ui:Button x:Name="RecordButton" Content="Start" Click="RecordToggle_Click" Appearance="Primary" Padding="14,5"/>
-                        </ui:CardControl>
+                        <!-- Just the record action: full-width button, with a slim
+                             status line that only appears while recording/working. -->
+                        <StackPanel Grid.Row="2" Margin="0,0,0,12">
+                            <ui:Button x:Name="RecordButton" Content="Start" Click="RecordToggle_Click"
+                                       Appearance="Primary" HorizontalAlignment="Stretch"
+                                       HorizontalContentAlignment="Center" Padding="12,6">
+                                <ui:Button.Icon>
+                                    <ui:SymbolIcon Symbol="Record24"/>
+                                </ui:Button.Icon>
+                            </ui:Button>
+                            <TextBlock x:Name="RecordStatusText" Text="" FontSize="11" Margin="2,6,0,0"
+                                       Visibility="Collapsed" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
 
                         <ui:TextBox x:Name="NotesSearchBox" Grid.Row="3" Margin="0,0,0,10"
                                     PlaceholderText="Search notes" ClearButtonEnabled="True"
@@ -733,7 +732,7 @@
                                     <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="4,0,16,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="System" Style="{StaticResource SettingTitleTextStyle}"/>
-                                        <TextBlock Text="Fullscreen games, Enter after pasting" Style="{StaticResource SettingDescriptionTextStyle}"/>
+                                        <TextBlock Text="Start with Windows, fullscreen games, Enter after pasting" Style="{StaticResource SettingDescriptionTextStyle}"/>
                                     </StackPanel>
                                 </Grid>
                             </ui:CardAction>
@@ -763,19 +762,9 @@
                                     </StackPanel>
                                 </Grid>
                             </ui:CardAction>
-                            <ui:CardAction Margin="0,0,0,8" Click="SettingsCategory_Click" Tag="Prompts">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Symbol="TextGrammarWand24" FontSize="20" Margin="4,0,16,0" VerticalAlignment="Center"/>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Prompts" Style="{StaticResource SettingTitleTextStyle}"/>
-                                        <TextBlock Text="The instructions behind cleanup and context" Style="{StaticResource SettingDescriptionTextStyle}"/>
-                                    </StackPanel>
-                                </Grid>
-                            </ui:CardAction>
+
+                            <TextBlock Text="WinFlow · your voice stays yours" Margin="2,20,0,8"
+                                       FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -783,12 +772,13 @@
                     <Grid x:Name="SettingsDetailHost" Grid.Row="1" Visibility="Collapsed"/>
                 </Grid>
 
-                <!-- ================= FOOTER ================= -->
-                <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                <!-- ================= FOOTER =================
+                     Save actions only; hidden entirely when there is nothing to save,
+                     so pages don't carry a permanent empty strip. -->
+                <Border x:Name="SaveFooter" Grid.Row="1" Visibility="Collapsed"
+                        BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                         Padding="32,10" Background="Transparent">
                     <Grid>
-                        <TextBlock Text="WinFlow · your voice stays yours" VerticalAlignment="Center"
-                                   FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                             <TextBlock x:Name="SaveHintText" Text="" VerticalAlignment="Center" Margin="0,0,12,0"
                                        FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>

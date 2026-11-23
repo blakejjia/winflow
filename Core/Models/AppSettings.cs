@@ -30,8 +30,5 @@ public class AppSettings
     public string OutputLanguage { get; set; } = string.Empty;
     public string SelectedMicrophoneId { get; set; } = string.Empty;
 
-    public string CustomSystemPrompt { get; set; } = string.Empty;
-    public string CustomContextPrompt { get; set; } = string.Empty;
-
     public List<VoiceMacro> VoiceMacros { get; set; } = new();
 }
