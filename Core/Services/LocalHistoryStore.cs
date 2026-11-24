@@ -14,6 +14,8 @@ public interface IHistoryStore
     IReadOnlyList<PipelineHistoryItem> Recent { get; }
     UsageStats Stats { get; }
     void Append(PipelineHistoryItem item);
+    /// <summary>Persists changes to an existing item (e.g. a manual retry recovered its text).</summary>
+    void Update(PipelineHistoryItem item);
     Task LoadAsync();
 }
 
@@ -102,15 +104,30 @@ public class LocalHistoryStore : IHistoryStore
             _items.Insert(0, item);
             if (_items.Count > MaxItems) _items.RemoveRange(MaxItems, _items.Count - MaxItems);
 
-            _stats.TotalRuns++;
-            _stats.TotalWords += CountWords(item.CleanedText);
-            _stats.TotalSpeechSeconds += Math.Max(0, item.DurationSeconds);
-            var today = item.Timestamp.ToLocalTime().ToString("yyyy-MM-dd");
-            if (!_stats.ActiveDays.Contains(today))
+            // Failed runs keep their audio for retry but must not count as dictation stats.
+            if (string.IsNullOrEmpty(item.ErrorMessage))
             {
-                _stats.ActiveDays.Add(today);
-                if (_stats.ActiveDays.Count > 400) _stats.ActiveDays.RemoveAt(0);
+                _stats.TotalRuns++;
+                _stats.TotalWords += CountWords(item.CleanedText);
+                _stats.TotalSpeechSeconds += Math.Max(0, item.DurationSeconds);
+                var today = item.Timestamp.ToLocalTime().ToString("yyyy-MM-dd");
+                if (!_stats.ActiveDays.Contains(today))
+                {
+                    _stats.ActiveDays.Add(today);
+                    if (_stats.ActiveDays.Count > 400) _stats.ActiveDays.RemoveAt(0);
+                }
             }
+        }
+        _ = SaveAsync();
+    }
+
+    public void Update(PipelineHistoryItem item)
+    {
+        lock (_gate)
+        {
+            var idx = _items.FindIndex(i => i.Id == item.Id);
+            if (idx < 0) return;
+            _items[idx] = item;
         }
         _ = SaveAsync();
     }

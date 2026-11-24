@@ -20,6 +20,7 @@ public class AppState : IDisposable
     private readonly ISettingsService _settingsService;
     private readonly SettingsProvider _settingsProvider;
     private readonly IHistoryStore? _historyStore;
+    private readonly PendingAudioStore _pendingAudio;
 
     private readonly List<PipelineHistoryItem> _history = new();
     private readonly object _historyLock = new();
@@ -103,6 +104,8 @@ public class AppState : IDisposable
     public event Action<PipelinePhase>? PhaseChanged;
     public event Action<float>? AudioLevelChanged;
     public event Action<PipelineHistoryItem>? RunCompleted;
+    /// <summary>A run failed but its text/audio was kept in history; the UI should refresh.</summary>
+    public event Action<PipelineHistoryItem>? RunFailed;
     public event Action<string>? ErrorOccurred;
     public event Action<PipelineNotice>? NoticeRaised;
 
@@ -116,7 +119,8 @@ public class AppState : IDisposable
         ITextInjector textInjector,
         ISettingsService settingsService,
         SettingsProvider? settingsProvider = null,
-        IHistoryStore? historyStore = null)
+        IHistoryStore? historyStore = null,
+        PendingAudioStore? pendingAudioStore = null)
     {
         _audioRecorder = audioRecorder;
         _keyboardHook = keyboardHook;
@@ -128,6 +132,7 @@ public class AppState : IDisposable
         _settingsService = settingsService;
         _settingsProvider = settingsProvider ?? new SettingsProvider();
         _historyStore = historyStore;
+        _pendingAudio = pendingAudioStore ?? new PendingAudioStore();
     }
 
     /// <summary>Persistent local history + lifetime stats (null in unit tests).</summary>
@@ -136,6 +141,9 @@ public class AppState : IDisposable
     public async Task InitializeAsync()
     {
         _settingsProvider.Current = await _settingsService.LoadSettingsAsync();
+        // Keep failed recordings for a week so a manual retry stays possible,
+        // then let them go so %TEMP% cannot grow without bound.
+        _pendingAudio.CleanupOlderThan(TimeSpan.FromDays(7));
         if (_historyStore != null)
         {
             await _historyStore.LoadAsync();
@@ -270,6 +278,8 @@ public class AppState : IDisposable
             string cleanedText = string.Empty;
             string? contextSummary = null;
             AppContextSnapshot? snapshot = null;
+            string? audioPath = null;
+            bool keepAudio = false;
 
             try
             {
@@ -279,10 +289,27 @@ public class AppState : IDisposable
                     return;
                 }
 
-                // Audio Transcription
+                // Persist before any network call: a server failure must never
+                // eat the recording. Deleted below once the run fully succeeds.
+                audioPath = _pendingAudio.Save(wav);
+
+                // Audio Transcription (retries transient server failures internally)
                 rawTranscript = await _transcriptionService.TranscribeAsync(wav, Settings.TranscriptionLanguage, ct);
-                if (string.IsNullOrWhiteSpace(rawTranscript) || ct.IsCancellationRequested)
+                if (ct.IsCancellationRequested)
                 {
+                    return;
+                }
+                if (string.IsNullOrWhiteSpace(rawTranscript))
+                {
+                    // Empty can mean silence, but also a missing key or a bad
+                    // response. Keep the audio and leave a retryable trace.
+                    keepAudio = true;
+                    AddHistory(new PipelineHistoryItem
+                    {
+                        ErrorMessage = "No transcript came back — check your API key in Settings, then retry.",
+                        AudioFilePath = audioPath
+                    });
+                    HandleError("No transcript came back — your recording is saved in History for retry.", generation);
                     return;
                 }
 
@@ -316,6 +343,13 @@ public class AppState : IDisposable
                     // LLM cleanup needs a key; macros above intentionally work offline.
                     if (string.IsNullOrWhiteSpace(Settings.GroqApiKey))
                     {
+                        keepAudio = true;
+                        AddHistory(new PipelineHistoryItem
+                        {
+                            RawTranscript = rawTranscript,
+                            ErrorMessage = "No API key yet — add one in Settings, then retry.",
+                            AudioFilePath = audioPath
+                        });
                         HandleError("No API key yet — add one in Settings to start dictating.", generation);
                         return;
                     }
@@ -351,8 +385,20 @@ public class AppState : IDisposable
                         ct);
                 }
 
-                if (string.IsNullOrWhiteSpace(cleanedText) || ct.IsCancellationRequested)
+                if (ct.IsCancellationRequested)
                 {
+                    return;
+                }
+                if (string.IsNullOrWhiteSpace(cleanedText))
+                {
+                    keepAudio = true;
+                    AddHistory(new PipelineHistoryItem
+                    {
+                        RawTranscript = rawTranscript,
+                        ErrorMessage = "Cleanup returned no text — retry from here.",
+                        AudioFilePath = audioPath
+                    });
+                    HandleError("Cleanup returned no text — your recording is saved in History for retry.", generation);
                     return;
                 }
 
@@ -361,6 +407,14 @@ public class AppState : IDisposable
                 bool injected = await _textInjector.InjectTextAsync(cleanedText, pressEnterAfter);
                 if (!injected)
                 {
+                    AddHistory(new PipelineHistoryItem
+                    {
+                        RawTranscript = rawTranscript,
+                        CleanedText = cleanedText,
+                        SelectedText = selectedText,
+                        ContextSummary = contextSummary,
+                        ErrorMessage = "Couldn't paste — copy the text from here."
+                    });
                     HandleError("Couldn't paste — your words are safe in the run log.", generation);
                     return;
                 }
@@ -390,10 +444,26 @@ public class AppState : IDisposable
             }
             catch (Exception ex)
             {
-                HandleError($"Pipeline error: {ex.Message}", generation);
+                // Automatic retries are exhausted. Keep the audio on disk and leave
+                // a history entry so the user can retry manually instead of re-speaking.
+                keepAudio = true;
+                AddHistory(new PipelineHistoryItem
+                {
+                    RawTranscript = rawTranscript,
+                    CleanedText = cleanedText,
+                    ErrorMessage = ex.Message,
+                    AudioFilePath = audioPath
+                });
+                HandleError(audioPath != null
+                    ? "Transcription failed after 3 tries — recording saved in History, retry from there."
+                    : $"Pipeline error: {ex.Message}", generation);
             }
             finally
             {
+                if (!keepAudio)
+                {
+                    _pendingAudio.Delete(audioPath);
+                }
                 lock (_stateLock)
                 {
                     // Only the newest run may return the pipeline to Idle; a superseded
@@ -473,6 +543,81 @@ public class AppState : IDisposable
             {
                 _history.RemoveAt(_history.Count - 1);
             }
+        }
+        if (!string.IsNullOrEmpty(item.ErrorMessage))
+        {
+            RunFailed?.Invoke(item);
+        }
+    }
+
+    /// <summary>
+    /// Manually retries a failed dictation from its saved WAV. Never injects into
+    /// the foreground app — the focus has long moved on — the recovered text lands
+    /// in the history item for copying. Returns true when the text was recovered.
+    /// </summary>
+    public async Task<bool> RetryHistoryItemAsync(PipelineHistoryItem item, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(item.ErrorMessage)) return false;
+
+        try
+        {
+            // A failed paste already has the final text; just clear the error.
+            if (!string.IsNullOrWhiteSpace(item.CleanedText))
+            {
+                item.ErrorMessage = null;
+                _pendingAudio.Delete(item.AudioFilePath);
+                item.AudioFilePath = null;
+                _historyStore?.Update(item);
+                RunCompleted?.Invoke(item);
+                return true;
+            }
+            var raw = item.RawTranscript;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                var wav = _pendingAudio.Load(item.AudioFilePath);
+                if (wav == null || wav.Length <= 44)
+                {
+                    // Recording is gone (temp cleaned); nothing left to retry from.
+                    return false;
+                }
+                raw = await _transcriptionService.TranscribeAsync(wav, Settings.TranscriptionLanguage, ct);
+            }
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+
+            string cleaned;
+            var macroPayload = VoiceMacroMatcher.Match(raw, Settings.VoiceMacros);
+            if (macroPayload != null)
+            {
+                cleaned = macroPayload;
+            }
+            else if (!string.IsNullOrWhiteSpace(Settings.GroqApiKey))
+            {
+                cleaned = await _postProcessingService.CleanupTranscriptAsync(
+                    raw, "Manual retry of a saved recording.", Settings.CustomVocabulary, null, ct);
+                if (string.IsNullOrWhiteSpace(cleaned)) cleaned = raw;
+            }
+            else
+            {
+                cleaned = raw; // no key: the raw transcript is still worth keeping
+            }
+
+            item.RawTranscript = raw;
+            item.CleanedText = cleaned;
+            item.ErrorMessage = null;
+            _pendingAudio.Delete(item.AudioFilePath);
+            item.AudioFilePath = null;
+            _historyStore?.Update(item);
+            RunCompleted?.Invoke(item);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Still failing: keep the error and the audio for the next attempt.
+            return false;
         }
     }
 

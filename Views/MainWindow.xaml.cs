@@ -49,6 +49,7 @@ public partial class MainWindow : FluentWindow
         Loaded += OnWindowLoaded;
 
         _appState.RunCompleted += OnRunCompleted;
+        _appState.RunFailed += OnRunCompleted;
         _notesService.NotesChanged += () => Dispatcher.BeginInvoke(RefreshNotesList);
         _recordClock.Tick += (_, _) =>
         {
@@ -196,8 +197,32 @@ public partial class MainWindow : FluentWindow
     {
         if ((sender as FrameworkElement)?.Tag is PipelineHistoryItem item)
         {
-            TrySetClipboard(item.CleanedText);
+            TrySetClipboard(item.DisplayText);
             ShowSnackbar("Copied", "The text is on your clipboard.", ControlAppearance.Success, SymbolRegular.Copy24);
+        }
+    }
+
+    private async void RetryHistoryItem_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not PipelineHistoryItem item) return;
+        if (sender is UIElement btn) btn.IsEnabled = false;
+        try
+        {
+            var ok = await _appState.RetryHistoryItemAsync(item);
+            RefreshHistory();
+            RefreshHome();
+            if (ok)
+            {
+                ShowSnackbar("Recovered", "Your words are back — copy them from History.", ControlAppearance.Success, SymbolRegular.CheckmarkCircle24);
+            }
+            else
+            {
+                ShowSnackbar("Still failing", "The server didn't respond. The recording is still saved — try again later.", ControlAppearance.Danger, SymbolRegular.DismissCircle24);
+            }
+        }
+        finally
+        {
+            if (sender is UIElement b) b.IsEnabled = true;
         }
     }
 
@@ -297,7 +322,14 @@ public partial class MainWindow : FluentWindow
             var note = await _notesService.CreateNoteAsync(audio, progress);
             RefreshNotesList();
             SelectNote(note);
-            ShowSnackbar("Note ready", "Minutes and transcript saved on this PC.", ControlAppearance.Success, SymbolRegular.Notepad24);
+            if (note.HasError)
+            {
+                ShowSnackbar("Recording saved", "The server failed after 3 tries. Your recording is kept — click Retry on the note.", ControlAppearance.Danger, SymbolRegular.DismissCircle24);
+            }
+            else
+            {
+                ShowSnackbar("Note ready", "Minutes and transcript saved on this PC.", ControlAppearance.Success, SymbolRegular.Notepad24);
+            }
         }
         catch (Exception ex)
         {
@@ -334,6 +366,34 @@ public partial class MainWindow : FluentWindow
 
     private void NotesSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshNotesList();
 
+    private async void RetryNote_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedNote is not { CanRetry: true } note || _notesBusy) return;
+
+        _notesBusy = true;
+        RetryNoteButton.IsEnabled = false;
+        RetryNoteButton.Content = "Retrying…";
+        try
+        {
+            var progress = new Progress<string>(msg => Dispatcher.BeginInvoke(() => SetRecordStatus(msg)));
+            var updated = await _notesService.RetryNoteAsync(note, progress);
+            RefreshNotesList();
+            SelectNote(updated);
+            ShowSnackbar("Note ready", "Minutes and transcript saved on this PC.", ControlAppearance.Success, SymbolRegular.Notepad24);
+        }
+        catch (Exception ex)
+        {
+            ShowSnackbar("Still failing", ex.Message, ControlAppearance.Danger, SymbolRegular.DismissCircle24);
+        }
+        finally
+        {
+            _notesBusy = false;
+            RetryNoteButton.IsEnabled = true;
+            RetryNoteButton.Content = "Retry";
+            SetRecordStatus("");
+        }
+    }
+
     private void NoteItem_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is MeetingNote note)
@@ -366,6 +426,7 @@ public partial class MainWindow : FluentWindow
         CopyNoteButton.Visibility = Visibility.Visible;
         ExportNoteButton.Visibility = Visibility.Visible;
         DeleteNoteButton.Visibility = Visibility.Visible;
+        RetryNoteButton.Visibility = note.CanRetry ? Visibility.Visible : Visibility.Collapsed;
         _askCts?.Cancel();
         _chatTurns.Clear();
         NoteChatList.ItemsSource = _chatTurns;

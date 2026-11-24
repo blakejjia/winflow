@@ -21,7 +21,10 @@ public class TranscriptionService : ITranscriptionService
         _settingsProvider = settingsProvider;
     }
 
-    public async Task<string> TranscribeAsync(byte[] wavBytes, string? language = null, CancellationToken ct = default)
+    public Task<string> TranscribeAsync(byte[] wavBytes, string? language = null, CancellationToken ct = default)
+        => TranscriptionRetry.RunAsync(innerCt => TranscribeOnceAsync(wavBytes, language, innerCt), ct);
+
+    private async Task<string> TranscribeOnceAsync(byte[] wavBytes, string? language, CancellationToken ct)
     {
         if (wavBytes == null || wavBytes.Length == 0)
             return string.Empty;

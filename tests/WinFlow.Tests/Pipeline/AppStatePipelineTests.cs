@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using WinFlow.Core.Audio;
 using WinFlow.Core.Context;
 using WinFlow.Core.Keyboard;
@@ -58,11 +60,28 @@ public class AppStatePipelineTests
     private class MockTranscriptionService : ITranscriptionService
     {
         public string Transcript { get; set; } = "hello world from mock";
+        public int FailuresBeforeSuccess { get; set; } // int.MaxValue = always fail
         public int CallCount;
         public Task<string> TranscribeAsync(byte[] wavBytes, string? language = null, CancellationToken ct = default)
         {
             Interlocked.Increment(ref CallCount);
+            if (CallCount <= FailuresBeforeSuccess)
+                throw new HttpRequestException("Transcription failed with status InternalServerError");
             return Task.FromResult(Transcript);
+        }
+    }
+
+    private class MockPostProcessingService : IPostProcessingService
+    {
+        public string CleanedText { get; set; } = "Hello, world from mock.";
+        public int FailuresBeforeSuccess { get; set; }
+        public int CallCount;
+        public Task<string> CleanupTranscriptAsync(string rawTranscript, string contextSummary, string customVocabulary, string? selectedText = null, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref CallCount);
+            if (CallCount <= FailuresBeforeSuccess)
+                throw new HttpRequestException("Post-processing failed with status InternalServerError");
+            return Task.FromResult(CleanedText);
         }
     }
 
@@ -73,23 +92,17 @@ public class AppStatePipelineTests
             => Task.FromResult(Summary);
     }
 
-    private class MockPostProcessingService : IPostProcessingService
-    {
-        public string CleanedText { get; set; } = "Hello, world from mock.";
-        public Task<string> CleanupTranscriptAsync(string rawTranscript, string contextSummary, string customVocabulary, string? selectedText = null, CancellationToken ct = default)
-            => Task.FromResult(CleanedText);
-    }
-
     private class MockTextInjector : ITextInjector
     {
         public string? InjectedText { get; private set; }
         public bool PressEnterPassed { get; private set; }
+        public bool Succeeds { get; set; } = true;
 
         public Task<bool> InjectTextAsync(string text, bool pressEnterAfter = false, int restoreDelayMs = 1000)
         {
             InjectedText = text;
             PressEnterPassed = pressEnterAfter;
-            return Task.FromResult(true);
+            return Task.FromResult(Succeeds);
         }
     }
 
@@ -116,7 +129,9 @@ public class AppStatePipelineTests
         var injector = new MockTextInjector();
         var settings = new MockSettingsService();
 
-        var appState = new AppState(audio, hook, context, transcription, vision, post, injector, settings);
+        using var temp = new TempPendingDir();
+        var appState = new AppState(audio, hook, context, transcription, vision, post, injector, settings,
+            pendingAudioStore: temp.Store);
         appState.MinimumDictationDuration = TimeSpan.Zero; // instant release is intentional here
         await appState.InitializeAsync();
 
@@ -140,13 +155,27 @@ public class AppStatePipelineTests
         Assert.Equal("Hello, world from mock.", appState.History[0].CleanedText);
     }
 
+    /// <summary>Isolated %TEMP% subdir per test so parallel tests never sweep each other's files.</summary>
+    private sealed class TempPendingDir : IDisposable
+    {
+        public string Dir { get; } = Path.Combine(Path.GetTempPath(), "WinFlowTests", Guid.NewGuid().ToString("N"));
+        public PendingAudioStore Store { get; }
+        public TempPendingDir() => Store = new PendingAudioStore(Dir);
+        public void Dispose()
+        {
+            try { Directory.Delete(Dir, recursive: true); } catch { }
+        }
+    }
+
     private static AppState CreatePipeline(
         MockAudioRecorder? audio = null,
         MockKeyboardHook? hook = null,
         MockTranscriptionService? transcription = null,
         MockPostProcessingService? post = null,
         MockTextInjector? injector = null,
-        MockSettingsService? settings = null)
+        MockSettingsService? settings = null,
+        IHistoryStore? historyStore = null,
+        PendingAudioStore? pendingAudio = null)
     {
         return new AppState(
             audio ?? new MockAudioRecorder(),
@@ -156,7 +185,9 @@ public class AppStatePipelineTests
             new MockContextVisionService(),
             post ?? new MockPostProcessingService(),
             injector ?? new MockTextInjector(),
-            settings ?? new MockSettingsService());
+            settings ?? new MockSettingsService(),
+            historyStore: historyStore,
+            pendingAudioStore: pendingAudio);
     }
 
     [Fact]
@@ -189,7 +220,8 @@ public class AppStatePipelineTests
         var hook = new MockKeyboardHook();
         var injector = new MockTextInjector();
         var settings = new MockSettingsService { Settings = new AppSettings() }; // no key
-        var appState = CreatePipeline(hook: hook, injector: injector, settings: settings);
+        using var temp = new TempPendingDir();
+        var appState = CreatePipeline(hook: hook, injector: injector, settings: settings, pendingAudio: temp.Store);
         appState.MinimumDictationDuration = TimeSpan.Zero;
         await appState.InitializeAsync();
 
@@ -210,7 +242,8 @@ public class AppStatePipelineTests
     {
         var hook = new MockKeyboardHook();
         var settings = new MockSettingsService { Settings = new AppSettings() }; // no key -> error path
-        var appState = CreatePipeline(hook: hook, settings: settings);
+        using var temp = new TempPendingDir();
+        var appState = CreatePipeline(hook: hook, settings: settings, pendingAudio: temp.Store);
         appState.MinimumDictationDuration = TimeSpan.Zero;
         await appState.InitializeAsync();
 
@@ -242,7 +275,8 @@ public class AppStatePipelineTests
         var hook = new MockKeyboardHook();
         var transcription = new MockTranscriptionService();
         var injector = new MockTextInjector();
-        var appState = CreatePipeline(hook: hook, transcription: transcription, injector: injector);
+        using var temp = new TempPendingDir();
+        var appState = CreatePipeline(hook: hook, transcription: transcription, injector: injector, pendingAudio: temp.Store);
         appState.MinimumDictationDuration = TimeSpan.FromSeconds(5); // release below is instant
         await appState.InitializeAsync();
 
@@ -261,7 +295,8 @@ public class AppStatePipelineTests
     {
         var hook = new MockKeyboardHook();
         var injector = new MockTextInjector();
-        var appState = CreatePipeline(hook: hook, injector: injector);
+        using var temp = new TempPendingDir();
+        var appState = CreatePipeline(hook: hook, injector: injector, pendingAudio: temp.Store);
         appState.MinimumDictationDuration = TimeSpan.FromMilliseconds(150);
         await appState.InitializeAsync();
 
@@ -295,7 +330,9 @@ public class AppStatePipelineTests
             }
         };
 
-        var appState = new AppState(audio, hook, context, transcription, vision, post, injector, settings);
+        using var temp = new TempPendingDir();
+        var appState = new AppState(audio, hook, context, transcription, vision, post, injector, settings,
+            pendingAudioStore: temp.Store);
         appState.MinimumDictationDuration = TimeSpan.Zero;
         await appState.InitializeAsync();
 
@@ -305,5 +342,152 @@ public class AppStatePipelineTests
         await appState.WaitForIdleAsync(5000);
 
         Assert.Equal("test@winflow.dev", injector.InjectedText);
+    }
+
+    [Fact]
+    public async Task ServerFails_KeepsAudioAndFailedHistoryItem_ManualRetryRecovers()
+    {
+        var hook = new MockKeyboardHook();
+        var transcription = new MockTranscriptionService { FailuresBeforeSuccess = int.MaxValue };
+        var injector = new MockTextInjector();
+        using var temp = new TempPendingDir();
+        var historyPath = Path.Combine(temp.Dir, "history.json");
+        var store = new LocalHistoryStore(historyPath);
+        var appState = CreatePipeline(hook: hook, transcription: transcription, injector: injector,
+            historyStore: store, pendingAudio: temp.Store);
+        appState.MinimumDictationDuration = TimeSpan.Zero;
+        await appState.InitializeAsync();
+
+        string? error = null;
+        appState.ErrorOccurred += m => error = m;
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        hook.Trigger(ShortcutAction.HoldReleased);
+        await appState.WaitForIdleAsync(5000);
+
+        // No injection, but the run is kept: error message + WAV on disk.
+        Assert.Null(injector.InjectedText);
+        Assert.NotNull(error);
+        var failed = Assert.Single(appState.History);
+        Assert.True(failed.HasError);
+        Assert.True(failed.CanRetry);
+        Assert.NotNull(failed.AudioFilePath);
+        Assert.True(File.Exists(failed.AudioFilePath));
+
+        // The failed run must not pollute dictation stats.
+        Assert.Equal(0, store.Stats.TotalRuns);
+
+        // Server recovers; the user clicks Retry — no re-speaking, no injection.
+        transcription.FailuresBeforeSuccess = 0;
+        var ok = await appState.RetryHistoryItemAsync(failed);
+
+        Assert.True(ok);
+        Assert.False(failed.HasError);
+        Assert.Equal("hello world from mock", failed.RawTranscript);
+        Assert.Equal("Hello, world from mock.", failed.CleanedText);
+        Assert.Null(injector.InjectedText); // focus moved on; text is copied from History
+        Assert.Empty(Directory.GetFiles(temp.Dir, "*.wav")); // recovered run cleaned up its WAV
+
+        // The recovered text survives a reload of the persistent store.
+        await Task.Delay(150);
+        var reloaded = new LocalHistoryStore(historyPath);
+        await reloaded.LoadAsync();
+        Assert.Equal("Hello, world from mock.", reloaded.Recent[0].CleanedText);
+        Assert.False(reloaded.Recent[0].HasError);
+    }
+
+    [Fact]
+    public async Task SuccessfulRun_DeletesPendingAudio()
+    {
+        var hook = new MockKeyboardHook();
+        using var temp = new TempPendingDir();
+        var appState = CreatePipeline(hook: hook, pendingAudio: temp.Store);
+        appState.MinimumDictationDuration = TimeSpan.Zero;
+        await appState.InitializeAsync();
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        hook.Trigger(ShortcutAction.HoldReleased);
+        await appState.WaitForIdleAsync(5000);
+
+        Assert.Single(appState.History);
+        Assert.False(appState.History[0].HasError);
+        Assert.Empty(Directory.Exists(temp.Dir) ? Directory.GetFiles(temp.Dir, "*.wav") : Array.Empty<string>());
+    }
+
+    [Fact]
+    public async Task EmptyTranscript_ReportsError_KeepsAudioForRetry()
+    {
+        var hook = new MockKeyboardHook();
+        var transcription = new MockTranscriptionService { Transcript = "" };
+        var injector = new MockTextInjector();
+        using var temp = new TempPendingDir();
+        var appState = CreatePipeline(hook: hook, transcription: transcription, injector: injector, pendingAudio: temp.Store);
+        appState.MinimumDictationDuration = TimeSpan.Zero;
+        await appState.InitializeAsync();
+
+        string? error = null;
+        appState.ErrorOccurred += m => error = m;
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        hook.Trigger(ShortcutAction.HoldReleased);
+        await appState.WaitForIdleAsync(5000);
+
+        Assert.Null(injector.InjectedText);
+        Assert.NotNull(error); // no longer a silent disappearance
+        var failed = Assert.Single(appState.History);
+        Assert.True(failed.CanRetry);
+        Assert.True(File.Exists(failed.AudioFilePath));
+    }
+
+    [Fact]
+    public async Task CleanupFails_KeepsRawTranscript_RetryRecoversWithoutNewTranscription()
+    {
+        var hook = new MockKeyboardHook();
+        var transcription = new MockTranscriptionService();
+        var post = new MockPostProcessingService { FailuresBeforeSuccess = int.MaxValue };
+        var injector = new MockTextInjector();
+        using var temp = new TempPendingDir();
+        var appState = CreatePipeline(hook: hook, transcription: transcription, post: post,
+            injector: injector, pendingAudio: temp.Store);
+        appState.MinimumDictationDuration = TimeSpan.Zero;
+        await appState.InitializeAsync();
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        hook.Trigger(ShortcutAction.HoldReleased);
+        await appState.WaitForIdleAsync(5000);
+
+        var failed = Assert.Single(appState.History);
+        Assert.True(failed.HasError);
+        Assert.Equal("hello world from mock", failed.RawTranscript);
+        Assert.True(File.Exists(failed.AudioFilePath));
+        var transcriptionCalls = transcription.CallCount;
+
+        post.FailuresBeforeSuccess = 0;
+        var ok = await appState.RetryHistoryItemAsync(failed);
+
+        Assert.True(ok);
+        Assert.Equal("Hello, world from mock.", failed.CleanedText);
+        Assert.Equal(transcriptionCalls, transcription.CallCount); // reused the saved transcript
+        Assert.Null(injector.InjectedText);
+    }
+
+    [Fact]
+    public async Task PasteFails_SavesTextToHistory()
+    {
+        var hook = new MockKeyboardHook();
+        var injector = new MockTextInjector { Succeeds = false };
+        using var temp = new TempPendingDir();
+        var appState = CreatePipeline(hook: hook, injector: injector, pendingAudio: temp.Store);
+        appState.MinimumDictationDuration = TimeSpan.Zero;
+        await appState.InitializeAsync();
+
+        hook.Trigger(ShortcutAction.HoldStarted);
+        hook.Trigger(ShortcutAction.HoldReleased);
+        await appState.WaitForIdleAsync(5000);
+
+        // The old UI promised "your words are safe in the run log" — now they actually are.
+        var item = Assert.Single(appState.History);
+        Assert.Equal("Hello, world from mock.", item.CleanedText);
+        Assert.True(item.HasError);
     }
 }

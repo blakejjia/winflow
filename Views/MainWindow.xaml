@@ -10,6 +10,10 @@
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica">
 
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -184,14 +188,27 @@
                                             <TextBlock Text="{Binding Timestamp, StringFormat={}{0:h:mm tt}, ConverterCulture=en-US}"
                                                        FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                        VerticalAlignment="Top" Margin="0,2,0,0"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding CleanedText}"
-                                                       TextWrapping="Wrap" MaxHeight="88" TextTrimming="CharacterEllipsis"
-                                                       Margin="0,0,8,0"/>
-                                            <ui:Button Grid.Column="2" Style="{StaticResource QuietIconButtonStyle}"
-                                                       ToolTip="Copy this text"
-                                                       Click="CopyHistoryItem_Click" Tag="{Binding}">
-                                                <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
-                                            </ui:Button>
+                                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding DisplayText}"
+                                                           TextWrapping="Wrap" MaxHeight="88" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding ErrorMessage}" FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                                           Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}"
+                                                           Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                <ui:Button Style="{StaticResource QuietIconButtonStyle}"
+                                                           ToolTip="Retry from the saved recording"
+                                                           Visibility="{Binding CanRetry, Converter={StaticResource BoolToVis}}"
+                                                           Click="RetryHistoryItem_Click" Tag="{Binding}">
+                                                    <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="14"/>
+                                                </ui:Button>
+                                                <ui:Button Style="{StaticResource QuietIconButtonStyle}"
+                                                           ToolTip="Copy this text"
+                                                           Click="CopyHistoryItem_Click" Tag="{Binding}">
+                                                    <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
+                                                </ui:Button>
+                                            </StackPanel>
                                         </Grid>
                                     </ui:Card>
                                 </DataTemplate>
@@ -241,12 +258,26 @@
                                                     <TextBlock Text="{Binding Timestamp, StringFormat={}{0:h:mm tt}, ConverterCulture=en-US}"
                                                                FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,1,0,0"/>
                                                 </StackPanel>
-                                                <TextBlock Grid.Column="1" Text="{Binding CleanedText}" TextWrapping="Wrap" Margin="0,0,8,0"/>
-                                                <ui:Button Grid.Column="2" Style="{StaticResource QuietIconButtonStyle}"
-                                                           ToolTip="Copy this text"
-                                                           Click="CopyHistoryItem_Click" Tag="{Binding}">
-                                                    <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
-                                                </ui:Button>
+                                                <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                    <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding ErrorMessage}" FontSize="12" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                                               Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}"
+                                                               Margin="0,4,0,0"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                                                    <ui:Button Style="{StaticResource QuietIconButtonStyle}"
+                                                               ToolTip="Retry from the saved recording"
+                                                               Visibility="{Binding CanRetry, Converter={StaticResource BoolToVis}}"
+                                                               Click="RetryHistoryItem_Click" Tag="{Binding}">
+                                                        <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="14"/>
+                                                    </ui:Button>
+                                                    <ui:Button Style="{StaticResource QuietIconButtonStyle}"
+                                                               ToolTip="Copy this text"
+                                                               Click="CopyHistoryItem_Click" Tag="{Binding}">
+                                                        <ui:SymbolIcon Symbol="Copy24" FontSize="14"/>
+                                                    </ui:Button>
+                                                </StackPanel>
                                             </Grid>
                                         </ui:Card>
                                     </DataTemplate>
@@ -475,6 +506,12 @@
                                                 KeyDown="NoteTitleBox_KeyDown" LostFocus="NoteTitleBox_LostFocus"/>
                                 </Grid>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <ui:Button x:Name="RetryNoteButton" Content="Retry" Click="RetryNote_Click" Appearance="Danger" Padding="10,3" Margin="0,0,4,0" Visibility="Collapsed"
+                                               ToolTip="Transcribe again from the saved recording">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="ArrowClockwise24"/>
+                                        </ui:Button.Icon>
+                                    </ui:Button>
                                     <ui:Button x:Name="CopyNoteButton" Content="Copy" Click="CopyNote_Click" Appearance="Transparent" Padding="10,3" Visibility="Collapsed">
                                         <ui:Button.Icon>
                                             <ui:SymbolIcon Symbol="Copy24"/>

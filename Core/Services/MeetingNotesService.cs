@@ -19,6 +19,18 @@ public class MeetingNote
     /// <summary>The user's own notes typed during/after the meeting. Never sent to the model.</summary>
     public string MyThoughts { get; set; } = string.Empty;
 
+    /// <summary>Set when transcription failed; the recording is kept on disk for a manual retry.</summary>
+    public string? ErrorMessage { get; set; }
+    public string? MicAudioPath { get; set; }
+    public string? SystemAudioPath { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CanRetry => HasError &&
+        (!string.IsNullOrEmpty(MicAudioPath) || !string.IsNullOrEmpty(SystemAudioPath));
+
     /// <summary>Duration as h:mm:ss (or m:ss under an hour) for list display.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public string DurationLabel => Duration.TotalHours >= 1
@@ -52,6 +64,8 @@ public interface IMeetingNotesService
     /// anything beyond the configured API endpoint.
     /// </summary>
     Task<MeetingNote> CreateNoteAsync(MeetingAudio audio, IProgress<string>? progress = null, CancellationToken ct = default);
+    /// <summary>Re-runs a note whose transcription failed, from the WAVs kept on disk.</summary>
+    Task<MeetingNote> RetryNoteAsync(MeetingNote note, IProgress<string>? progress = null, CancellationToken ct = default);
     Task DeleteNoteAsync(Guid id);
 
     /// <summary>Persists edits to an existing note (title, my thoughts).</summary>
@@ -68,6 +82,7 @@ public class MeetingNotesService : IMeetingNotesService
     private readonly HttpClient _httpClient;
     private readonly ISettingsProvider _settingsProvider;
     private readonly string _filePath;
+    private readonly PendingAudioStore _pendingAudio;
     private readonly object _gate = new();
     private List<MeetingNote> _notes = new();
 
@@ -75,7 +90,8 @@ public class MeetingNotesService : IMeetingNotesService
         ITranscriptionService transcription,
         HttpClient httpClient,
         ISettingsProvider settingsProvider,
-        string? filePath = null)
+        string? filePath = null,
+        PendingAudioStore? pendingAudioStore = null)
     {
         _transcription = transcription;
         _httpClient = httpClient;
@@ -83,6 +99,7 @@ public class MeetingNotesService : IMeetingNotesService
         _filePath = filePath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "WinFlow", "notes.json");
+        _pendingAudio = pendingAudioStore ?? new PendingAudioStore();
     }
 
     public IReadOnlyList<MeetingNote> Notes
@@ -110,8 +127,80 @@ public class MeetingNotesService : IMeetingNotesService
 
     public async Task<MeetingNote> CreateNoteAsync(MeetingAudio audio, IProgress<string>? progress = null, CancellationToken ct = default)
     {
-        var micText = await TranscribeTrackAsync(audio.MicrophoneWav, "You", progress, ct);
-        var sysText = await TranscribeTrackAsync(audio.SystemWav, "Others", progress, ct);
+        // Persist both tracks before any network call: a server failure must never
+        // eat a whole meeting. Deleted below once the note is fully written.
+        var micPath = audio.MicrophoneWav.Length > WavHeaderBytes
+            ? _pendingAudio.Save(audio.MicrophoneWav, "meeting-you") : null;
+        var sysPath = audio.SystemWav.Length > WavHeaderBytes
+            ? _pendingAudio.Save(audio.SystemWav, "meeting-others") : null;
+
+        var note = new MeetingNote
+        {
+            Duration = audio.Duration,
+            MicAudioPath = micPath,
+            SystemAudioPath = sysPath
+        };
+
+        try
+        {
+            await FillNoteAsync(note, audio.MicrophoneWav, audio.SystemWav, progress, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            _pendingAudio.Delete(micPath);
+            _pendingAudio.Delete(sysPath);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Automatic retries are exhausted. Keep the recording and a retryable
+            // note stub so the user can re-run it once the server recovers.
+            note.ErrorMessage = ex.Message;
+            note.Title = "Recording saved — transcription failed";
+            note.Summary = "The transcription server failed after 3 tries. Your recording is kept on this PC — click Retry to try again.";
+            lock (_gate) _notes.Insert(0, note);
+            await SaveAsync();
+            NotesChanged?.Invoke();
+            return note;
+        }
+
+        _pendingAudio.Delete(micPath);
+        _pendingAudio.Delete(sysPath);
+        note.MicAudioPath = null;
+        note.SystemAudioPath = null;
+        lock (_gate) _notes.Insert(0, note);
+        await SaveAsync();
+        NotesChanged?.Invoke();
+        return note;
+    }
+
+    public async Task<MeetingNote> RetryNoteAsync(MeetingNote note, IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        if (!note.CanRetry)
+            throw new InvalidOperationException("This note has no saved recording to retry from.");
+
+        var micWav = _pendingAudio.Load(note.MicAudioPath) ?? Array.Empty<byte>();
+        var sysWav = _pendingAudio.Load(note.SystemAudioPath) ?? Array.Empty<byte>();
+        if (micWav.Length <= WavHeaderBytes && sysWav.Length <= WavHeaderBytes)
+            throw new FileNotFoundException("The saved recording is no longer on disk.");
+
+        await FillNoteAsync(note, micWav, sysWav, progress, ct);
+
+        _pendingAudio.Delete(note.MicAudioPath);
+        _pendingAudio.Delete(note.SystemAudioPath);
+        note.MicAudioPath = null;
+        note.SystemAudioPath = null;
+        note.ErrorMessage = null;
+        await SaveAsync();
+        NotesChanged?.Invoke();
+        return note;
+    }
+
+    /// <summary>Transcribes both tracks and writes title/transcript/summary onto the note.</summary>
+    private async Task FillNoteAsync(MeetingNote note, byte[] micWav, byte[] sysWav, IProgress<string>? progress, CancellationToken ct)
+    {
+        var micText = await TranscribeTrackAsync(micWav, "You", progress, ct);
+        var sysText = await TranscribeTrackAsync(sysWav, "Others", progress, ct);
 
         var transcript = string.Join("\n\n", new[] { micText, sysText }.Where(t => !string.IsNullOrWhiteSpace(t)));
         if (string.IsNullOrWhiteSpace(transcript))
@@ -122,23 +211,24 @@ public class MeetingNotesService : IMeetingNotesService
         progress?.Report("Writing the summary…");
         var summary = await SummarizeAsync(transcript, ct);
 
-        var note = new MeetingNote
-        {
-            Title = MakeTitle(summary, transcript),
-            Duration = audio.Duration,
-            Transcript = transcript,
-            Summary = summary
-        };
-
-        lock (_gate) _notes.Insert(0, note);
-        await SaveAsync();
-        NotesChanged?.Invoke();
-        return note;
+        note.Title = MakeTitle(summary, transcript);
+        note.Transcript = transcript;
+        note.Summary = summary;
     }
 
     public async Task DeleteNoteAsync(Guid id)
     {
-        lock (_gate) _notes.RemoveAll(n => n.Id == id);
+        List<MeetingNote> removed;
+        lock (_gate)
+        {
+            removed = _notes.Where(n => n.Id == id).ToList();
+            _notes.RemoveAll(n => n.Id == id);
+        }
+        foreach (var n in removed)
+        {
+            _pendingAudio.Delete(n.MicAudioPath);
+            _pendingAudio.Delete(n.SystemAudioPath);
+        }
         await SaveAsync();
         NotesChanged?.Invoke();
     }

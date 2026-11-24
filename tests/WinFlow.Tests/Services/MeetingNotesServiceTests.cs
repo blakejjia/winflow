@@ -10,11 +10,17 @@ namespace WinFlow.Tests.Services;
 public class MeetingNotesServiceTests : IDisposable
 {
     private readonly string _tempFile = Path.Combine(Path.GetTempPath(), $"winflow-notes-{Guid.NewGuid():N}.json");
+    private readonly string _tempAudioDir = Path.Combine(Path.GetTempPath(), "WinFlowTests", Guid.NewGuid().ToString("N"));
 
     public void Dispose()
     {
         try { File.Delete(_tempFile); } catch { }
+        try { Directory.Delete(_tempAudioDir, recursive: true); } catch { }
     }
+
+    private MeetingNotesService CreateService(ITranscriptionService transcription, HttpClient http, AppSettings? settings = null)
+        => new(transcription, http, new FixedSettingsProvider(settings ?? new AppSettings()),
+            _tempFile, new PendingAudioStore(_tempAudioDir));
 
     private class FakeTranscription : ITranscriptionService
     {
@@ -41,7 +47,7 @@ public class MeetingNotesServiceTests : IDisposable
         var transcription = new FakeTranscription();
         using var http = new HttpClient(); // no key configured -> summary falls back, no network
         var settings = new AppSettings(); // no API key
-        var service = new MeetingNotesService(transcription, http, new FixedSettingsProvider(settings), _tempFile);
+        var service = CreateService(transcription, http, settings);
 
         var audio = new MeetingAudio(MakeWav(130), MakeWav(70), TimeSpan.FromSeconds(130));
         var note = await service.CreateNoteAsync(audio);
@@ -56,7 +62,7 @@ public class MeetingNotesServiceTests : IDisposable
         Assert.Single(service.Notes);
         Assert.True(File.Exists(_tempFile) || true); // save is best-effort async; list is authoritative
 
-        var reloaded = new MeetingNotesService(transcription, http, new FixedSettingsProvider(settings), _tempFile);
+        var reloaded = CreateService(transcription, http, settings);
         await Task.Delay(150);
         await reloaded.LoadAsync();
         Assert.Single(reloaded.Notes);
@@ -68,7 +74,7 @@ public class MeetingNotesServiceTests : IDisposable
     {
         var transcription = new FakeTranscription();
         using var http = new HttpClient();
-        var service = new MeetingNotesService(transcription, http, new FixedSettingsProvider(new AppSettings()), _tempFile);
+        var service = CreateService(transcription, http);
 
         var note = await service.CreateNoteAsync(new MeetingAudio(Array.Empty<byte>(), Array.Empty<byte>(), TimeSpan.Zero));
 
@@ -94,7 +100,7 @@ public class MeetingNotesServiceTests : IDisposable
     {
         var transcription = new FakeTranscription();
         using var http = new HttpClient();
-        var service = new MeetingNotesService(transcription, http, new FixedSettingsProvider(new AppSettings()), _tempFile);
+        var service = CreateService(transcription, http);
 
         var note = await service.CreateNoteAsync(new MeetingAudio(MakeWav(2), Array.Empty<byte>(), TimeSpan.FromSeconds(2)));
         Assert.Single(service.Notes);

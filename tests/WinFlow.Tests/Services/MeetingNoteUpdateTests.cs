@@ -9,14 +9,17 @@ namespace WinFlow.Tests.Services;
 public class MeetingNoteUpdateTests : IDisposable
 {
     private readonly string _tempFile = Path.Combine(Path.GetTempPath(), $"winflow-notes-{Guid.NewGuid():N}.json");
+    private readonly string _tempAudioDir = Path.Combine(Path.GetTempPath(), "WinFlowTests", Guid.NewGuid().ToString("N"));
 
     public void Dispose()
     {
         try { File.Delete(_tempFile); } catch { }
+        try { Directory.Delete(_tempAudioDir, recursive: true); } catch { }
     }
 
     private MeetingNotesService NewService() =>
-        new(new NoopTranscription(), new HttpClient(), new FixedSettingsProvider(new AppSettings()), _tempFile);
+        new(new NoopTranscription(), new HttpClient(), new FixedSettingsProvider(new AppSettings()),
+            _tempFile, new PendingAudioStore(_tempAudioDir));
 
     private class NoopTranscription : ITranscriptionService
     {
