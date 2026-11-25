@@ -234,6 +234,7 @@ public partial class App : System.Windows.Application
             _mainWindow.WindowState = WindowState.Normal;
         }
         _mainWindow.Activate();
+        _overlayWindow?.RecoverOverlay(recreate: false);
     }
 
     /// <summary>

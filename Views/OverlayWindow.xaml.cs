@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using Microsoft.Win32;
 using WinFlow.Audio;
 using WinFlow.Core.Pipeline;
 
@@ -61,6 +63,16 @@ public partial class OverlayWindow : Window
     private double _dpiScale = 1.0;
     private int _leftPhys, _topPhys;
     private bool _hugTop = true;
+    private bool _isClosed;
+    private bool _inRecoveryRecreate;
+    private System.Windows.Threading.DispatcherTimer? _recoveryTimer;
+    private int _recoveryStep;
+    private bool _recoveryNeedsRecreate;
+    private static readonly TimeSpan[] RecoveryDelays =
+    [
+        TimeSpan.FromMilliseconds(500),
+        TimeSpan.FromMilliseconds(1500)
+    ];
 
     public OverlayWindow(AppState appState, IMeetingRecorder? meetingRecorder = null)
     {
@@ -82,6 +94,14 @@ public partial class OverlayWindow : Window
         // OnSourceInitialized (and the old lazy PushPixels path) never ran until
         // a dictation phase. Create the layered surface explicitly here.
         EnsureLayeredWindow();
+
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        SystemEvents.SessionSwitch += OnSessionSwitch;
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+
+        // Autostart (--minimized) can race Explorer/DWM during login; verify again
+        // once the desktop settles.
+        ScheduleRecovery(recreate: false, immediate: false);
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -93,21 +113,36 @@ public partial class OverlayWindow : Window
     private bool _layeredInitialized;
     private static ushort _hudClassAtom;
     private static WndProcDelegate? _hudWndProc; // keep alive for the process lifetime
+    private static uint _taskbarCreatedMsg;
+    private static readonly Dictionary<IntPtr, OverlayWindow> _windowsByHwnd = new();
 
     private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     private void EnsureLayeredWindow()
     {
         if (_layeredInitialized) return;
-        _layeredInitialized = true;
 
+        CreateLayeredWindowHandle();
+        if (_hwnd == IntPtr.Zero) return;
+
+        CenterAtTop();
+        ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+
+        // First paint: snap straight to the fixed Idle definition, no animation.
+        SnapTo(IdleDef);
+        PushPixels();
+    }
+
+    private void CreateLayeredWindowHandle()
+    {
         // A dedicated native window, NOT the WPF HwndSource: WPF's composition
         // target redirects its HWND and every UpdateLayeredWindow on it fails
         // with ERROR_INVALID_PARAMETER. A plain registered class has no such
         // redirection, so per-pixel alpha presentation works.
         if (_hudClassAtom == 0)
         {
-            _hudWndProc = DefWindowProc;
+            _hudWndProc = HudWndProc;
+            _taskbarCreatedMsg = RegisterWindowMessage("TaskbarCreated");
             var wc = new WNDCLASS
             {
                 lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_hudWndProc),
@@ -115,11 +150,11 @@ public partial class OverlayWindow : Window
                 lpszClassName = "WinFlowHudLayeredClass"
             };
             _hudClassAtom = RegisterClass(ref wc);
-                if (_hudClassAtom == 0) return;
+            if (_hudClassAtom == 0) return;
         }
 
-        _dpiScale = GetDpiForSystem() / 96.0;
-        if (_dpiScale <= 0) _dpiScale = 1.0;
+        uint sysDpi = GetDpiForSystem();
+        _dpiScale = sysDpi > 0 ? sysDpi / 96.0 : 1.0;
 
         _hwnd = CreateWindowEx(
             WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
@@ -129,12 +164,42 @@ public partial class OverlayWindow : Window
             IntPtr.Zero, IntPtr.Zero, GetModuleHandle(null), IntPtr.Zero);
         if (_hwnd == IntPtr.Zero) return;
 
-        CenterAtTop();
-        ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+        _windowsByHwnd[_hwnd] = this;
+        _layeredInitialized = true;
+    }
 
-        // First paint: snap straight to the fixed Idle definition, no animation.
-        SnapTo(IdleDef);
-        PushPixels();
+    private void RecreateLayeredWindow()
+    {
+        if (_hwnd != IntPtr.Zero)
+        {
+            _windowsByHwnd.Remove(_hwnd);
+            DestroyWindow(_hwnd);
+            _hwnd = IntPtr.Zero;
+        }
+        _layeredInitialized = false;
+        CreateLayeredWindowHandle();
+    }
+
+    private static IntPtr HudWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        try
+        {
+            if (msg == WM_NCDESTROY)
+            {
+                _windowsByHwnd.Remove(hWnd);
+            }
+            else if (ShouldRecoverOnWindowMessage(msg, wParam, _taskbarCreatedMsg)
+                && _windowsByHwnd.TryGetValue(hWnd, out var owner))
+            {
+                owner.ScheduleRecovery(recreate: ShouldRecreateOnWindowMessage(msg, _taskbarCreatedMsg));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WinFlow HUD] WndProc error: {ex.Message}");
+        }
+
+        return DefWindowProc(hWnd, msg, wParam, lParam);
     }
 
     /// <summary>Applies a state definition instantly (first paint only).</summary>
@@ -153,13 +218,20 @@ public partial class OverlayWindow : Window
 
     public void CenterAtTop()
     {
-        if (_hwnd == IntPtr.Zero) return;
-        // Work in PHYSICAL pixels against the monitor under the WPF window position
-        // (GetDpiForSystem can disagree with the actual monitor on mixed-DPI setups).
-        uint dpi = GetDpiForWindow(_hwnd);
-        _dpiScale = dpi > 0 ? dpi / 96.0 : _dpiScale;
+        if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd)) return;
 
-        var monitor = MonitorFromWindow(_hwnd, MONITOR_DEFAULTTOPRIMARY);
+        // Resolve the current primary monitor first so a previously unplugged or
+        // rearranged display never leaves the HUD off-screen.
+        var monitor = MonitorFromPoint(new POINT { X = 0, Y = 0 }, MONITOR_DEFAULTTOPRIMARY);
+        if (monitor == IntPtr.Zero)
+        {
+            monitor = MonitorFromWindow(_hwnd, MONITOR_DEFAULTTOPRIMARY);
+        }
+
+        uint dpi = GetDpiForWindow(_hwnd);
+        if (dpi == 0) dpi = GetDpiForSystem();
+        _dpiScale = dpi > 0 ? dpi / 96.0 : 1.0;
+
         var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
         Rect workPhys;
         if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref mi))
@@ -179,12 +251,162 @@ public partial class OverlayWindow : Window
         _leftPhys = (int)(workPhys.Left + (workPhys.Width - wPhys) / 2);
         _topPhys = (int)(workPhys.Top + 5 * _dpiScale);
 
-        SetWindowPos(_hwnd, IntPtr.Zero, _leftPhys, _topPhys, wPhys, hPhys,
-            SWP_NOZORDER | SWP_NOACTIVATE);
+        // Re-assert HWND_TOPMOST without stealing focus; sleep/lock/Explorer restarts
+        // frequently demote WS_EX_TOPMOST tool windows.
+        SetWindowPos(_hwnd, HWND_TOPMOST, _leftPhys, _topPhys, wPhys, hPhys,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW);
+
+        // Moving onto the primary monitor can change the window's DPI on mixed-DPI setups.
+        uint newDpi = GetDpiForWindow(_hwnd);
+        if (newDpi > 0 && Math.Abs(newDpi / 96.0 - _dpiScale) > 0.001)
+        {
+            _dpiScale = newDpi / 96.0;
+            wPhys = (int)Math.Round(Width * _dpiScale);
+            hPhys = (int)Math.Round(Height * _dpiScale);
+            _leftPhys = (int)(workPhys.Left + (workPhys.Width - wPhys) / 2);
+            _topPhys = (int)(workPhys.Top + 5 * _dpiScale);
+            SetWindowPos(_hwnd, HWND_TOPMOST, _leftPhys, _topPhys, wPhys, hPhys,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+
+        if (!IsWindowVisible(_hwnd))
+        {
+            ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+        }
+
         // Keep WPF DIP state roughly in sync for anything that reads Left/Top.
         Left = _leftPhys / _dpiScale;
         Top = _topPhys / _dpiScale;
     }
+
+    /// <summary>
+    /// Ensures the native layered HUD window exists, sits topmost on the primary
+    /// monitor, and is freshly presented. Safe to call from any thread.
+    /// </summary>
+    public void RecoverOverlay(bool recreate = false)
+    {
+        if (_isClosed) return;
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => RecoverOverlay(recreate));
+            return;
+        }
+
+        if (recreate || _hwnd == IntPtr.Zero || !IsWindow(_hwnd))
+        {
+            RecreateLayeredWindow();
+            if (_hwnd == IntPtr.Zero) return;
+        }
+
+        CenterAtTop();
+        ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+        PushPixels();
+    }
+
+    internal void ScheduleRecovery(bool recreate = false, bool immediate = true)
+    {
+        if (_isClosed) return;
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => ScheduleRecovery(recreate, immediate));
+            return;
+        }
+
+        _recoveryNeedsRecreate |= recreate;
+        if (immediate)
+        {
+            RecoverOverlay(recreate: recreate);
+        }
+
+        if (_recoveryTimer == null)
+        {
+            _recoveryTimer = new System.Windows.Threading.DispatcherTimer();
+            _recoveryTimer.Tick += OnRecoveryTimerTick;
+        }
+
+        _recoveryTimer.Stop();
+        _recoveryStep = 0;
+        _recoveryTimer.Interval = RecoveryDelays[0];
+        _recoveryTimer.Start();
+    }
+
+    private void OnRecoveryTimerTick(object? sender, EventArgs e)
+    {
+        _recoveryTimer?.Stop();
+        if (_isClosed) return;
+
+        if (_recoveryStep == 0)
+        {
+            bool doRecreate = _recoveryNeedsRecreate;
+            _recoveryNeedsRecreate = false;
+            RecoverOverlay(recreate: doRecreate);
+        }
+        else
+        {
+            RecoverOverlay(recreate: false);
+        }
+
+        _recoveryStep++;
+        if (_recoveryStep < RecoveryDelays.Length && _recoveryTimer != null)
+        {
+            _recoveryTimer.Interval = RecoveryDelays[_recoveryStep] - RecoveryDelays[_recoveryStep - 1];
+            _recoveryTimer.Start();
+        }
+    }
+
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (ShouldRecoverOnPowerMode(e.Mode))
+        {
+            ScheduleRecovery(recreate: true);
+        }
+    }
+
+    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        if (ShouldRecoverOnSessionSwitch(e.Reason))
+        {
+            ScheduleRecovery(recreate: true);
+        }
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        ScheduleRecovery(recreate: false);
+    }
+
+    internal static bool ShouldKeepFrameLoopRunning(
+        bool morphActive,
+        bool fadeActive,
+        bool waveformVisible,
+        bool spinnerVisible,
+        bool meetingVisible) =>
+        morphActive || fadeActive || waveformVisible || spinnerVisible || meetingVisible;
+
+    internal static bool ShouldRecoverOnPowerMode(PowerModes mode) =>
+        mode == PowerModes.Resume;
+
+    internal static bool ShouldRecoverOnSessionSwitch(SessionSwitchReason reason) =>
+        reason is SessionSwitchReason.SessionUnlock
+            or SessionSwitchReason.SessionLogon
+            or SessionSwitchReason.ConsoleConnect
+            or SessionSwitchReason.RemoteConnect;
+
+    internal static bool ShouldRecoverOnWindowMessage(uint msg, IntPtr wParam, uint taskbarCreatedMsg)
+    {
+        if (taskbarCreatedMsg != 0 && msg == taskbarCreatedMsg) return true;
+        if (msg is WM_DISPLAYCHANGE or WM_DPICHANGED or WM_DWMCOMPOSITIONCHANGED) return true;
+        if (msg == WM_POWERBROADCAST)
+        {
+            long pbt = wParam.ToInt64();
+            return pbt is PBT_APMRESUMESUSPEND or PBT_APMRESUMEAUTOMATIC;
+        }
+        return false;
+    }
+
+    internal static bool ShouldRecreateOnWindowMessage(uint msg, uint taskbarCreatedMsg) =>
+        (taskbarCreatedMsg != 0 && msg == taskbarCreatedMsg)
+        || msg is WM_DWMCOMPOSITIONCHANGED or WM_POWERBROADCAST;
 
     /// <summary>
     /// Test/preview hook: presents the HUD exactly as a real phase change would,
@@ -215,6 +437,7 @@ public partial class OverlayWindow : Window
     private void OnFrame(object? sender, EventArgs e)
     {
         bool animating = false;
+        bool completedThisFrame = false;
 
         if (_morphClock != null)
         {
@@ -232,6 +455,7 @@ public partial class OverlayWindow : Window
             if (t >= 1)
             {
                 _morphClock = null;
+                completedThisFrame = true;
                 var done = _morphCompleted;
                 _morphCompleted = null;
                 done?.Invoke();
@@ -246,6 +470,7 @@ public partial class OverlayWindow : Window
             if (t >= 1)
             {
                 _fadeClock = null;
+                completedThisFrame = true;
                 var done = _fadeCompleted;
                 _fadeCompleted = null;
                 done?.Invoke();
@@ -256,10 +481,12 @@ public partial class OverlayWindow : Window
         {
             _spinnerAngle = (_spinnerAngle + 6.4) % 360;
             SpinnerRotation.Angle = _spinnerAngle;
+            animating = true;
         }
         if (Waveform.Visibility == Visibility.Visible)
         {
             Waveform.Tick();
+            animating = true;
         }
         if (MeetingPanel.Visibility == Visibility.Visible)
         {
@@ -267,11 +494,19 @@ public partial class OverlayWindow : Window
             animating = true;
         }
 
-        if (_alpha > 0.5 || animating)
+        bool keepRunning = ShouldKeepFrameLoopRunning(
+            _morphClock != null,
+            _fadeClock != null,
+            Waveform.Visibility == Visibility.Visible,
+            TranscribingPanel.Visibility == Visibility.Visible,
+            MeetingPanel.Visibility == Visibility.Visible);
+
+        if (animating || completedThisFrame)
         {
             PushPixels();
         }
-        else if (_frameTimer != null)
+
+        if (!keepRunning && _frameTimer != null)
         {
             _frameTimer.Stop();
         }
@@ -288,12 +523,15 @@ public partial class OverlayWindow : Window
     /// </summary>
     private void PushPixels()
     {
+        if (_isClosed) return;
+
         // The frame loop can start before WPF creates the HWND (preview path,
-        // or a phase change racing startup). Initialize once, lazily.
-        if (_hwnd == IntPtr.Zero)
+        // or a phase change racing startup), or the HWND may have been invalidated.
+        if (_hwnd == IntPtr.Zero || !IsWindow(_hwnd))
         {
-            EnsureLayeredWindow();
+            RecreateLayeredWindow();
             if (_hwnd == IntPtr.Zero) return;
+            CenterAtTop();
             ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
         }
 
@@ -303,38 +541,41 @@ public partial class OverlayWindow : Window
         int h = (int)Math.Round(hDip * _dpiScale);
         if (w <= 0 || h <= 0) return;
 
-        var size = new System.Windows.Size(wDip, hDip);
-        RootCanvas.Measure(size);
-        RootCanvas.Arrange(new Rect(size));
-        RootCanvas.UpdateLayout();
+        IntPtr screenDc = IntPtr.Zero;
+        IntPtr memDc = IntPtr.Zero;
+        IntPtr hBitmap = IntPtr.Zero;
+        IntPtr oldBitmap = IntPtr.Zero;
+        bool updateFailed = false;
 
-        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
-            w, h, 96 * _dpiScale, 96 * _dpiScale, System.Windows.Media.PixelFormats.Pbgra32);
-        rtb.Render(RootCanvas);
-
-        var bmi = new BITMAPINFO
-        {
-            biSize = Marshal.SizeOf<BITMAPINFOHEADER>(),
-            biWidth = w,
-            biHeight = -h, // top-down
-            biPlanes = 1,
-            biBitCount = 32,
-            biCompression = BI_RGB
-        };
-
-        IntPtr screenDc = GetDC(IntPtr.Zero);
-        IntPtr memDc = CreateCompatibleDC(screenDc);
-        IntPtr hBitmap = CreateDIBSection(screenDc, ref bmi, DIB_RGB_COLORS, out IntPtr bits, IntPtr.Zero, 0);
-        if (hBitmap == IntPtr.Zero || bits == IntPtr.Zero)
-        {
-            DeleteDC(memDc);
-            ReleaseDC(IntPtr.Zero, screenDc);
-            return;
-        }
-
-        IntPtr oldBitmap = SelectObject(memDc, hBitmap);
         try
         {
+            var size = new System.Windows.Size(wDip, hDip);
+            RootCanvas.Measure(size);
+            RootCanvas.Arrange(new Rect(size));
+            RootCanvas.UpdateLayout();
+
+            var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                w, h, 96 * _dpiScale, 96 * _dpiScale, System.Windows.Media.PixelFormats.Pbgra32);
+            rtb.Render(RootCanvas);
+
+            var bmi = new BITMAPINFO
+            {
+                biSize = Marshal.SizeOf<BITMAPINFOHEADER>(),
+                biWidth = w,
+                biHeight = -h, // top-down
+                biPlanes = 1,
+                biBitCount = 32,
+                biCompression = BI_RGB
+            };
+
+            screenDc = GetDC(IntPtr.Zero);
+            if (screenDc == IntPtr.Zero) return;
+            memDc = CreateCompatibleDC(screenDc);
+            if (memDc == IntPtr.Zero) return;
+            hBitmap = CreateDIBSection(screenDc, ref bmi, DIB_RGB_COLORS, out IntPtr bits, IntPtr.Zero, 0);
+            if (hBitmap == IntPtr.Zero || bits == IntPtr.Zero) return;
+
+            oldBitmap = SelectObject(memDc, hBitmap);
             rtb.CopyPixels(new Int32Rect(0, 0, w, h), bits, w * h * 4, w * 4);
 
             var topPos = new POINT { X = _leftPhys, Y = _topPhys };
@@ -351,19 +592,40 @@ public partial class OverlayWindow : Window
             bool ok = UpdateLayeredWindow(_hwnd, screenDc, ref topPos, ref sizeNative, memDc, ref srcLoc, 0, ref blend, ULW_ALPHA);
             if (!ok)
             {
-                if (_pushCount < 3)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[WinFlow HUD] UpdateLayeredWindow failed: {Marshal.GetLastWin32Error()}");
-                }
+                updateFailed = true;
+                System.Diagnostics.Debug.WriteLine($"[WinFlow HUD] UpdateLayeredWindow failed: {Marshal.GetLastWin32Error()}");
             }
             _pushCount++;
         }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WinFlow HUD] PushPixels failed: {ex.Message}");
+        }
         finally
         {
-            SelectObject(memDc, oldBitmap);
-            DeleteObject(hBitmap);
-            DeleteDC(memDc);
-            ReleaseDC(IntPtr.Zero, screenDc);
+            if (memDc != IntPtr.Zero && oldBitmap != IntPtr.Zero) SelectObject(memDc, oldBitmap);
+            if (hBitmap != IntPtr.Zero) DeleteObject(hBitmap);
+            if (memDc != IntPtr.Zero) DeleteDC(memDc);
+            if (screenDc != IntPtr.Zero) ReleaseDC(IntPtr.Zero, screenDc);
+        }
+
+        if (updateFailed && !_inRecoveryRecreate)
+        {
+            _inRecoveryRecreate = true;
+            try
+            {
+                RecreateLayeredWindow();
+                if (_hwnd != IntPtr.Zero)
+                {
+                    CenterAtTop();
+                    ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+                    PushPixels();
+                }
+            }
+            finally
+            {
+                _inRecoveryRecreate = false;
+            }
         }
     }
 
@@ -530,6 +792,11 @@ public partial class OverlayWindow : Window
             {
                 ElevatedBadge.Visibility = Visibility.Collapsed;
             }
+
+            if (_frameTimer?.IsEnabled != true)
+            {
+                PushPixels();
+            }
         });
     }
 
@@ -540,15 +807,28 @@ public partial class OverlayWindow : Window
             ErrorText.Text = message;
             ErrorText.ToolTip = message;
             ErrorText.Visibility = Visibility.Visible;
+
+            if (_frameTimer?.IsEnabled != true)
+            {
+                PushPixels();
+            }
         });
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        _isClosed = true;
         _frameTimer?.Stop();
         _meetingClock?.Stop();
+        _recoveryTimer?.Stop();
+
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+
         if (_hwnd != IntPtr.Zero)
         {
+            _windowsByHwnd.Remove(_hwnd);
             DestroyWindow(_hwnd);
             _hwnd = IntPtr.Zero;
         }
@@ -575,6 +855,15 @@ public partial class OverlayWindow : Window
     private const byte AC_SRC_ALPHA = 0x01;
     private const int BI_RGB = 0;
     private const uint DIB_RGB_COLORS = 0;
+    private const uint WM_DISPLAYCHANGE = 0x007E;
+    private const uint WM_NCDESTROY = 0x0082;
+    private const uint WM_POWERBROADCAST = 0x0218;
+    private const uint WM_DPICHANGED = 0x02E0;
+    private const uint WM_DWMCOMPOSITIONCHANGED = 0x031E;
+    private const long PBT_APMRESUMESUSPEND = 0x0007;
+    private const long PBT_APMRESUMEAUTOMATIC = 0x0012;
+
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -590,6 +879,20 @@ public partial class OverlayWindow : Window
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessage(string lpString);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -652,6 +955,7 @@ public partial class OverlayWindow : Window
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_SHOWWINDOW = 0x0040;
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
