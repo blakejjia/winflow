@@ -28,7 +28,7 @@
 
 ---
 
-WinFlow is a native Windows desktop utility designed for lightning-fast speech-to-text dictation, in-place AI text editing, and intelligent meeting transcription. Powered by low-level Windows APIs (**WASAPI loopback audio**, **native non-activating layered HUD**, **Windows DPAPI**), WinFlow seamlessly fits into any workflow without taking window focus or interrupting your focus.
+WinFlow is a native Windows desktop utility designed for lightning-fast speech-to-text dictation, in-place AI text editing, and intelligent meeting transcription. A opensource, free wisper flow alternative.
 
 Bring your own API key (Groq, OpenAI, Ollama, or any OpenAI-compatible endpoint) and enjoy ultra-fast, privacy-first voice writing without monthly subscription lock-ins.
 
